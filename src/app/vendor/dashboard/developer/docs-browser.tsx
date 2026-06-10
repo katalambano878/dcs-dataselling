@@ -229,8 +229,8 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
                   className={cn(
                     "group flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition",
                     active
-                      ? "bg-amber-50 text-foreground"
-                      : "text-muted hover:bg-slate-50 hover:text-foreground",
+                      ? "bg-amber-500/15 text-white"
+                      : "text-muted hover:bg-white/5 hover:text-white",
                   )}
                 >
                   <div className="min-w-0">
@@ -260,19 +260,19 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
 
         <p className="eyebrow-section px-2 pb-1 pt-3">References</p>
         <ul className="space-y-1 px-2 text-[11px]">
-          <li className="rounded-lg bg-slate-50 px-2 py-1.5">
+          <li className="rounded-lg bg-white/5 px-2 py-1.5">
             <p className="font-semibold text-foreground">Auth</p>
             <code className="mt-0.5 block font-mono text-[10px] text-muted">
               Authorization: Bearer dcs_…
             </code>
           </li>
-          <li className="rounded-lg bg-slate-50 px-2 py-1.5">
+          <li className="rounded-lg bg-white/5 px-2 py-1.5">
             <p className="font-semibold text-foreground">Base URL</p>
             <code className="mt-0.5 block break-all font-mono text-[10px] text-muted">
               {apiBase}
             </code>
           </li>
-          <li className="rounded-lg bg-slate-50 px-2 py-1.5">
+          <li className="rounded-lg bg-white/5 px-2 py-1.5">
             <p className="font-semibold text-foreground">Currency</p>
             <span className="text-muted">GHS (Ghanaian Cedi)</span>
           </li>
@@ -281,7 +281,7 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
 
       {/* Detail */}
       <div className="space-y-3">
-        <div className="surface-card p-5">
+        <div className="panel p-5">
           <div className="flex items-center gap-2">
             <span className={cn("chip", endpoint.method === "GET" ? "chip-sky" : "chip-emerald")}>
               {endpoint.method}
@@ -293,13 +293,13 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
         </div>
 
         {/* Code sample */}
-        <div className="surface-card overflow-hidden">
+        <div className="panel overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Terminal className="h-3.5 w-3.5 text-amber-600" />
               <p className="eyebrow-light">Request</p>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-slate-50 p-0.5">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-white/5 p-0.5">
               {(["curl", "node", "python"] as Lang[]).map((l) => (
                 <button
                   key={l}
@@ -308,8 +308,8 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
                   className={cn(
                     "rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition",
                     lang === l
-                      ? "bg-foreground text-white"
-                      : "text-muted hover:text-foreground",
+                      ? "bg-amber-500 text-[#061528]"
+                      : "text-muted hover:text-white",
                   )}
                 >
                   {langLabel(l)}
@@ -335,7 +335,7 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
         )}
 
         {/* Response */}
-        <div className="surface-card overflow-hidden">
+        <div className="panel overflow-hidden">
           <div className="border-b border-border px-4 py-2.5">
             <p className="eyebrow-light">Response</p>
           </div>
@@ -343,7 +343,7 @@ export function DocsBrowser({ apiBase }: { apiBase: string }) {
         </div>
 
         {/* Common errors */}
-        <div className="surface-card p-5">
+        <div className="panel p-5">
           <p className="eyebrow-light">Common error codes</p>
           <ul className="mt-3 space-y-2 text-xs">
             <ErrorRow status={401} code="missing_key | invalid_key | revoked | expired" desc="API key is missing, malformed, or no longer valid." />
