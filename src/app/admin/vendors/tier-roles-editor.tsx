@@ -16,6 +16,7 @@ const ROLE_LABELS: Record<VendorTier, string> = {
   starter: "Agent (base role)",
   verified: "Super Agent role",
   pro: "Pro Agent role",
+  express: "Express Agent role (supplier price)",
 };
 
 export function TierRolesEditor({ initialSettings }: Props) {
@@ -78,7 +79,7 @@ export function TierRolesEditor({ initialSettings }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
         {VENDOR_TIERS.map((tierId) => {
           const role = settings.tiers[tierId];
           return (

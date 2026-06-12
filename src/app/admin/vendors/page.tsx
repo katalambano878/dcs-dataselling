@@ -45,10 +45,11 @@ const STATUS_VARIANT: Record<
   rejected: "danger",
 };
 
-const TIER_VARIANT: Record<VendorTier, "neutral" | "default" | "success"> = {
+const TIER_VARIANT: Record<VendorTier, "neutral" | "default" | "success" | "warning"> = {
   starter: "neutral",
   verified: "default",
   pro: "success",
+  express: "warning",
 };
 
 const STAGE_META: Record<

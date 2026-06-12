@@ -34,6 +34,7 @@ export function normalizeWholesalePrices(row: RowLike): WholesalePriceMatrix {
  * starter → Agent price
  * verified → Super Agent price (stored in xpressAgentPrice column)
  * pro → Pro Agent price (stored in agentProPrice column)
+ * express → Supplier cost price (manually assigned)
  */
 export function resolveAgentBuyPrice(
   prices: WholesalePriceMatrix | RowLike,
@@ -41,6 +42,8 @@ export function resolveAgentBuyPrice(
 ): number {
   const p = normalizeWholesalePrices(prices);
   switch (tier) {
+    case "express":
+      return p.costPrice;
     case "pro":
       return p.agentProPrice;
     case "verified":
@@ -52,6 +55,8 @@ export function resolveAgentBuyPrice(
 
 export function tierBuyPriceLabel(tier: VendorTier): string {
   switch (tier) {
+    case "express":
+      return "Supplier price";
     case "pro":
       return "Pro Agent price";
     case "verified":

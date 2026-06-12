@@ -14,7 +14,7 @@ export interface Profile {
 
 export type VendorStatus = "pending" | "approved" | "suspended" | "rejected";
 export type KycStatus = "not_started" | "pending_review" | "verified" | "rejected";
-export type VendorTier = "starter" | "verified" | "pro";
+export type VendorTier = "starter" | "verified" | "pro" | "express";
 
 export interface AdminProfileRecord {
   id: string;

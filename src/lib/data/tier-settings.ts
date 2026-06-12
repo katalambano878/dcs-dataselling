@@ -47,7 +47,7 @@ export async function saveAgentTierSettings(settings: AgentTierSettings): Promis
 
   if (upsertError) throw new Error(upsertError.message);
 
-  for (const tierId of ["starter", "verified", "pro"] as VendorTier[]) {
+  for (const tierId of ["starter", "verified", "pro", "express"] as VendorTier[]) {
     const tier = normalized.tiers[tierId];
     const { error } = await service
       .from("vendors")

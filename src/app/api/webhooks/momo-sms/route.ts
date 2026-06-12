@@ -112,6 +112,7 @@ export async function POST(request: Request) {
       const completion = await finalizeMomoWalletTopup(
         matchedWalletTopupId,
         parsed.transactionId,
+        parsed.amount ?? null,
       );
       walletTopupFinalized = completion != null;
       if (completion?.notifyPhone) {

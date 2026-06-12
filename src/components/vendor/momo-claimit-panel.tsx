@@ -146,7 +146,8 @@ export function MomoClaimItPanel({
         </div>
         <p className="claimit-muted text-xs leading-relaxed">
           Generate a unique code. When you send MoMo with this code as reference, your wallet is
-          credited automatically.
+          credited automatically. You are always credited the amount shown in your MoMo SMS — even
+          if it differs from the amount you enter below.
         </p>
 
         <div className="flex flex-wrap gap-2">

@@ -67,7 +67,7 @@ export async function getCurrentVendor() {
     tagline: string | null;
     status: "pending" | "approved" | "suspended" | "rejected";
     kyc_status: "not_started" | "pending_review" | "verified" | "rejected";
-    tier: "starter" | "verified" | "pro";
+    tier: "starter" | "verified" | "pro" | "express";
     theme_color: string | null;
     emoji: string | null;
     banner_url: string | null;

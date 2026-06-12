@@ -28,6 +28,7 @@ const TIER_RANK: Record<VendorTier, number> = {
   starter: 0,
   verified: 1,
   pro: 2,
+  express: 3,
 };
 
 function meetsTierRules(

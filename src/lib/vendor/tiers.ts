@@ -1,7 +1,7 @@
 import type { VendorTier } from "@/types";
 import type { AgentTierSettings, AgentTierPricing } from "@/lib/vendor/tier-settings-types";
 
-export const VENDOR_TIERS: VendorTier[] = ["starter", "verified", "pro"];
+export const VENDOR_TIERS: VendorTier[] = ["starter", "verified", "pro", "express"];
 
 export interface TierConfig extends AgentTierPricing {
   id: VendorTier;
@@ -29,6 +29,13 @@ export const DEFAULT_AGENT_TIER_SETTINGS: AgentTierSettings = {
       commissionRate: 4,
       rewardRate: 0.2,
       minWithdrawal: 20,
+    },
+    express: {
+      label: "Express Agent",
+      description: "Supplier pricing — manually assigned by admin",
+      commissionRate: 2,
+      rewardRate: 0.25,
+      minWithdrawal: 10,
     },
   },
   promotion: {

@@ -25,6 +25,13 @@ function withinAmountTolerance(expected: number, received: number): boolean {
   return received + 0.01 >= expected;
 }
 
+/** Credit the MoMo SMS amount when it is at least the declared top-up (handles overpayment). */
+function resolveCreditAmount(declaredAmount: number, smsAmount: number | null): number | "underpaid" {
+  if (smsAmount == null) return declaredAmount;
+  if (smsAmount + 0.01 < declaredAmount) return "underpaid";
+  return smsAmount;
+}
+
 export async function createMomoWalletTopup(vendorId: string, amount: number) {
   if (!hasSupabaseConfig()) throw new Error("Database not configured");
   const service = createServiceClient();
@@ -63,6 +70,8 @@ export async function linkSmsToWalletTopup(smsId: string, topupId: string): Prom
 export async function finalizeMomoWalletTopup(
   topupId: string,
   transactionId: string,
+  /** When set, credits this amount (from the MoMo SMS) instead of the declared top-up amount. */
+  smsAmount?: number | null,
 ): Promise<WalletTopupCompletion | null> {
   if (!hasSupabaseConfig()) return null;
   const service = createServiceClient();
@@ -76,12 +85,18 @@ export async function finalizeMomoWalletTopup(
   const t = topup as PendingMomoTopup & { payment_method: string } | null;
   if (!t || t.status !== "pending" || t.payment_method !== "momo_direct") return null;
 
+  const declared = Number(t.amount);
+  const creditResolution = resolveCreditAmount(declared, smsAmount ?? null);
+  if (creditResolution === "underpaid") return null;
+  const amountToCredit = creditResolution;
+
   const { error: updateError } = await service
     .from("wallet_topups")
     .update({
       status: "paid",
       paid_at: new Date().toISOString(),
       payment_reference: transactionId.trim().toUpperCase(),
+      amount: amountToCredit,
     })
     .eq("id", t.id)
     .eq("status", "pending");
@@ -90,7 +105,7 @@ export async function finalizeMomoWalletTopup(
 
   await creditVendorWallet(
     t.vendor_id,
-    Number(t.amount),
+    amountToCredit,
     "topup",
     t.reference,
     "MoMo wallet top-up",
@@ -100,7 +115,7 @@ export async function finalizeMomoWalletTopup(
 
   return {
     vendorId: t.vendor_id,
-    amount: Number(t.amount),
+    amount: amountToCredit,
     reference: t.reference,
     notifyPhone,
   };
@@ -303,17 +318,18 @@ export async function claimMomoWalletTopup(params: {
 
   const smsAmount = sms.amount != null ? Number(sms.amount) : null;
   const topupAmount = Number(topup.amount);
-  if (smsAmount != null && smsAmount + 0.01 < topupAmount) {
+  const creditResolution = resolveCreditAmount(topupAmount, smsAmount);
+  if (creditResolution === "underpaid") {
     return {
       status: "amount_mismatch",
       orderAmount: topupAmount,
-      smsAmount,
+      smsAmount: smsAmount ?? undefined,
       reference: topup.reference,
     };
   }
 
   await linkSmsToWalletTopup(sms.id, topup.id);
-  const result = await finalizeMomoWalletTopup(topup.id, txnId);
+  const result = await finalizeMomoWalletTopup(topup.id, txnId, smsAmount);
   if (!result) return { status: "already_processed" };
 
   return {

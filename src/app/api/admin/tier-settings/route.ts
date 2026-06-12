@@ -24,6 +24,7 @@ const schema = z.object({
     starter: tierPricingSchema,
     verified: tierPricingSchema,
     pro: tierPricingSchema,
+    express: tierPricingSchema,
   }),
   promotion: z.object({
     verified: promotionSchema,

@@ -9,7 +9,7 @@ const schema = z.object({
   status: z.enum(["pending", "approved", "suspended", "rejected"]).optional(),
   featured: z.boolean().optional(),
   verified: z.boolean().optional(),
-  tier: z.enum(["starter", "verified", "pro"]).optional(),
+  tier: z.enum(["starter", "verified", "pro", "express"]).optional(),
 });
 
 export async function PATCH(

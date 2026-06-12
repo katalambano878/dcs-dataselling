@@ -5,6 +5,7 @@ import { fetchVendorRewards, requestRewardWithdrawal } from "@/lib/vendor/extras
 import { getAgentTierSettings } from "@/lib/data/tier-settings";
 import { getTierConfigFromSettings } from "@/lib/vendor/tiers";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import type { VendorTier } from "@/types";
 
 export async function GET() {
   if (!hasSupabaseConfig()) {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       .maybeSingle();
     const settings = await getAgentTierSettings();
     const minWithdrawal = getTierConfigFromSettings(
-      (vendorRow as { tier?: "starter" | "verified" | "pro" } | null)?.tier,
+      (vendorRow as { tier?: VendorTier } | null)?.tier,
       settings,
     ).minWithdrawal;
 
