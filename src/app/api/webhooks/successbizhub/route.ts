@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { smsOrderFulfilled } from "@/lib/notifications/sms";
 import { formatDataAmount } from "@/lib/format";
+import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 import { creditVendorReward } from "@/lib/vendor/extras";
 import { getAgentTierSettings } from "@/lib/data/tier-settings";
 import { getTierConfigFromSettings } from "@/lib/vendor/tiers";
@@ -85,9 +86,8 @@ export async function POST(request: Request) {
       .from("orders")
       .select(
         `
-        id, reference, recipient_phone, vendor_id, amount, platform_fee, reward_credited_at,
-        vendors ( tier ),
-        bundles ( name, data_mb )
+        id, reference, recipient_phone, vendor_id, amount, platform_fee, reward_credited_at, bundle_id,
+        vendors ( tier )
       `,
       )
       .eq("supplier_order_code", orderId);
@@ -100,8 +100,8 @@ export async function POST(request: Request) {
       amount: number | string;
       platform_fee: number | string;
       reward_credited_at: string | null;
+      bundle_id: string;
       vendors: { tier: VendorTier | null } | { tier: VendorTier | null }[] | null;
-      bundles: { name: string; data_mb: number } | { name: string; data_mb: number }[] | null;
     };
 
     const settings = await getAgentTierSettings();
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
             .eq("id", r.id);
         }
       }
-      const bundle = Array.isArray(r.bundles) ? r.bundles[0] : r.bundles;
+      const bundle = await fetchStorefrontOrderBundle(service, r.bundle_id);
       const bundleLabel = bundle
         ? `${formatDataAmount(bundle.data_mb)} ${bundle.name}`
         : "data";

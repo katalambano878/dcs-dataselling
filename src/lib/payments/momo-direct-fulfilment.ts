@@ -1,6 +1,7 @@
 import "server-only";
 
 import { after } from "next/server";
+import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 import { dispatchCustomerOrderToSupplier } from "@/lib/suppliers/dispatch";
 import { smsOrderPaymentReceived } from "@/lib/notifications/sms";
 import { formatDataAmount } from "@/lib/format";
@@ -19,12 +20,7 @@ export async function finalizeMomoDirectOrder(orderId: string, transactionId: st
 
   const { data: order } = await service
     .from("orders")
-    .select(
-      `
-      id, reference, status, recipient_phone, amount,
-      bundles ( name, data_mb )
-    `,
-    )
+    .select("id, reference, status, recipient_phone, amount, bundle_id")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -34,10 +30,7 @@ export async function finalizeMomoDirectOrder(orderId: string, transactionId: st
     status: string;
     recipient_phone: string;
     amount: number | string;
-    bundles:
-      | { name: string; data_mb: number }
-      | { name: string; data_mb: number }[]
-      | null;
+    bundle_id: string;
   };
   const o = order as Row | null;
   if (!o) return false;
@@ -45,7 +38,7 @@ export async function finalizeMomoDirectOrder(orderId: string, transactionId: st
   // Only act on orders still awaiting MoMo confirmation.
   if (o.status !== "awaiting_momo") return false;
 
-  const bundle = Array.isArray(o.bundles) ? o.bundles[0] : o.bundles;
+  const bundle = await fetchStorefrontOrderBundle(service, o.bundle_id);
   const bundleLabel = bundle
     ? `${formatDataAmount(bundle.data_mb)} ${bundle.name}`
     : "data";

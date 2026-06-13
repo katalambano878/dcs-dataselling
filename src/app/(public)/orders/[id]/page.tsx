@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Clock, Package } from "lucide-react";
+import { verifyCustomerOrderWithPaystack } from "@/lib/payments/customer-order-paystack";
+import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { formatDataAmount, formatGHS, formatPhone } from "@/lib/format";
 import { NetworkBadge } from "@/components/marketplace/network-badge";
@@ -34,12 +36,21 @@ export const dynamic = "force-dynamic";
 
 export default async function OrderTrackingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ref?: string }>;
 }) {
   const { id } = await params;
+  const { ref } = await searchParams;
 
   if (!hasSupabaseConfig()) notFound();
+
+  const service = createServiceClient();
+
+  if (ref) {
+    await verifyCustomerOrderWithPaystack(ref);
+  }
 
   type OrderRow = {
     id: string;
@@ -49,11 +60,10 @@ export default async function OrderTrackingPage({
     status: OrderStatus;
     created_at: string;
     fulfilled_at: string | null;
-    bundle: { name: string; network: "mtn" | "telecel" | "at"; data_mb: number; validity_days: number } | null;
+    bundle_id: string;
     vendor: { business_name: string; slug: string } | null;
   };
 
-  const service = createServiceClient();
   const { data } = await service
     .from("orders")
     .select(
@@ -65,7 +75,7 @@ export default async function OrderTrackingPage({
       status,
       created_at,
       fulfilled_at,
-      bundle:bundles!orders_bundle_id_fkey ( name, network, data_mb, validity_days ),
+      bundle_id,
       vendor:vendors!orders_vendor_id_fkey ( business_name, slug )
       `,
     )
@@ -73,13 +83,17 @@ export default async function OrderTrackingPage({
     .maybeSingle();
 
   const order = data as unknown as OrderRow | null;
-  if (!order || !order.bundle || !order.vendor) notFound();
+  if (!order || !order.vendor) notFound();
+
+  const listingBundle = await fetchStorefrontOrderBundle(service, order.bundle_id);
+  if (!listingBundle) notFound();
+
+  const bundle = listingBundle;
+  const vendor = order.vendor;
 
   const status = STATUS_CONFIG[order.status];
   const steps: OrderStatus[] = ["paid", "queued", "processing", "fulfilled"];
   const currentIdx = steps.indexOf(order.status);
-  const bundle = order.bundle;
-  const vendor = order.vendor;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-8">

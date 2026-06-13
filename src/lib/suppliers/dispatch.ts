@@ -11,6 +11,7 @@ import {
   tryCreditReferralForCustomerOrder,
   tryCreditReferralForWholesaleItem,
 } from "@/lib/referrals/vendor-referral";
+import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 import { getResolvedSupplierForNetwork } from "./routing";
 import type { SupplierClient, SupplierNetworkSlug } from "./types";
 
@@ -30,12 +31,7 @@ export async function dispatchCustomerOrderToSupplier(orderId: string): Promise<
   const service = createServiceClient();
   const { data, error } = await service
     .from("orders")
-    .select(
-      `
-      id, reference, status, recipient_phone, supplier_reference,
-      bundles ( network, data_mb )
-    `,
-    )
+    .select("id, reference, status, recipient_phone, supplier_reference, bundle_id")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -50,16 +46,13 @@ export async function dispatchCustomerOrderToSupplier(orderId: string): Promise<
     status: string;
     recipient_phone: string;
     supplier_reference: string | null;
-    bundles:
-      | { network: SupplierNetworkSlug; data_mb: number }
-      | { network: SupplierNetworkSlug; data_mb: number }[]
-      | null;
+    bundle_id: string;
   };
 
   if (row.supplier_reference) return; // already submitted
   if (!["paid", "queued"].includes(row.status)) return;
 
-  const bundle = Array.isArray(row.bundles) ? row.bundles[0] : row.bundles;
+  const bundle = await fetchStorefrontOrderBundle(service, row.bundle_id);
   if (!bundle) {
     await service
       .from("orders")

@@ -1,12 +1,11 @@
 import { NextResponse, after } from "next/server";
 import crypto from "crypto";
+import { finalizePaystackCustomerOrder } from "@/lib/payments/customer-order-paystack";
 import { markSetupPaymentPaid } from "@/lib/payments/setup-fee";
 import { markWalletTopupPaid } from "@/lib/payments/wallet";
 import { markWholesaleOrderPaid } from "@/lib/payments/wholesale-order";
-import { smsOrderPaymentReceived, smsWalletTopup } from "@/lib/notifications/sms";
-import { formatDataAmount } from "@/lib/format";
-import { dispatchCustomerOrderToSupplier } from "@/lib/suppliers/dispatch";
-import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { smsWalletTopup } from "@/lib/notifications/sms";
+import { hasSupabaseConfig } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -36,8 +35,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true, note: "DB not configured" });
   }
 
-  const service = createServiceClient();
-
   if (event.event === "charge.success") {
     const meta = event.data.metadata ?? {};
     if (meta.type === "vendor_setup") {
@@ -65,66 +62,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
 
-    const { data: order } = await service
-      .from("orders")
-      .select(
-        `
-        id, status, reference, recipient_phone,
-        bundles ( name, data_mb )
-      `,
-      )
-      .eq("reference", event.data.reference)
-      .maybeSingle();
-
-    if (order && order.status === "pending") {
-      const o = order as {
-        id: string;
-        status: string;
-        reference: string;
-        recipient_phone: string;
-        bundles: { name: string; data_mb: number } | { name: string; data_mb: number }[] | null;
-      };
-      const bundle = Array.isArray(o.bundles) ? o.bundles[0] : o.bundles;
-      const bundleLabel = bundle
-        ? `${formatDataAmount(bundle.data_mb)} ${bundle.name}`
-        : "data";
-
-      await service
-        .from("orders")
-        .update({
-          status: "paid",
-          paid_at: new Date().toISOString(),
-          payment_reference: event.data.reference,
-        })
-        .eq("id", o.id);
-
-      await service.from("transactions").insert({
-        order_id: o.id,
-        provider: "paystack",
-        provider_reference: event.data.reference,
-        amount: event.data.amount / 100,
-        status: event.data.status,
-        raw_payload: event.data,
-      });
-
-      await service.from("orders").update({ status: "queued" }).eq("id", o.id);
-
-      // Run notification + supplier dispatch AFTER the response is sent, but via
-      // `after()` so the serverless function stays alive until they finish.
-      // (A bare `void fn()` is killed when the response returns, which left
-      // orders stuck in `queued` and forced admins to retry manually.)
-      after(() =>
-        smsOrderPaymentReceived({
-          phone: o.recipient_phone,
-          reference: o.reference,
-          bundleLabel,
-        }),
-      );
-
-      // If dispatch fails, the order stays `queued` with supplier_error set so
-      // admin can still retry from /admin/orders.
-      after(() => dispatchCustomerOrderToSupplier(o.id));
-    }
+    await finalizePaystackCustomerOrder(event.data);
   }
 
   return NextResponse.json({ received: true });

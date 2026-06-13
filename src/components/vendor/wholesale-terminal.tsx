@@ -289,60 +289,62 @@ export function WholesaleTerminal({
                 No products for this network.
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
                 {filtered.map((wb) => (
                   <article
                     key={wb.id}
-                    className="rounded-xl border border-white/10 bg-navy-900/80 p-4"
+                    className="rounded-lg border border-white/10 bg-navy-900/80 p-2.5 sm:rounded-xl sm:p-4"
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
                           <NetworkBadge network={wb.network} size="xs" />
                           {wb.popular && (
-                            <Badge variant="warning" className="text-[9px]">
+                            <Badge variant="warning" className="px-1 py-0 text-[8px] sm:text-[9px]">
                               Hot
                             </Badge>
                           )}
                         </div>
-                        <h3 className="mt-2 text-sm font-bold leading-snug">{wb.name}</h3>
-                        <p className="mt-0.5 text-[11px] text-white/45">
+                        <h3 className="mt-1 text-[11px] font-bold leading-snug sm:mt-2 sm:text-sm">
+                          {wb.name}
+                        </h3>
+                        <p className="mt-0.5 text-[9px] text-white/45 sm:text-[11px]">
                           {formatDataAmount(wb.dataMb)} · {wb.validityDays}d
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 items-center justify-between gap-1 sm:flex-col sm:items-end sm:gap-1.5">
                         <WishlistToggle
                           bundleId={wb.id}
                           apiBase="/api/vendor/wishlist"
                           initialSaved={wishlistIds.includes(wb.id)}
                         />
-                        <p className="num text-lg font-bold text-gold">
+                        <p className="num text-sm font-bold text-gold sm:text-lg">
                           {formatGHS(buyPrice(wb))}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-navy-950/60 px-3 py-2">
-                      <Phone className="h-3.5 w-3.5 shrink-0 text-white/40" />
-                      <span className="text-xs font-bold text-white/40">+233</span>
+                    <div className="mt-2 flex items-center gap-1.5 rounded-md border border-white/10 bg-navy-950/60 px-2 py-1.5 sm:mt-3 sm:gap-2 sm:rounded-lg sm:px-3 sm:py-2">
+                      <Phone className="h-3 w-3 shrink-0 text-white/40 sm:h-3.5 sm:w-3.5" />
+                      <span className="text-[10px] font-bold text-white/40 sm:text-xs">+233</span>
                       <input
                         type="tel"
                         inputMode="numeric"
-                        placeholder="0241234567"
+                        placeholder="024…"
                         value={phones[wb.id] ?? ""}
                         onChange={(e) =>
                           setPhones((p) => ({ ...p, [wb.id]: normalizeInput(e.target.value) }))
                         }
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold placeholder:text-white/25 focus:outline-none"
+                        className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold placeholder:text-white/25 focus:outline-none sm:text-sm"
                       />
                     </div>
 
                     <Button
                       size="sm"
-                      className="mt-3 w-full bg-gold text-navy-950 hover:bg-gold-glow"
+                      className="mt-2 h-8 w-full bg-gold text-[11px] text-navy-950 hover:bg-gold-glow sm:mt-3 sm:h-9 sm:text-sm"
                       onClick={() => addToCart(wb)}
                     >
-                      <ShoppingCart className="h-3.5 w-3.5" />
+                      <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       Add to Cart
                     </Button>
                   </article>

@@ -1,6 +1,7 @@
 import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { formatDataAmount } from "@/lib/format";
+import { fetchStorefrontOrderBundlesBatch } from "@/lib/orders/storefront-listing";
 import type { OrderStatus } from "@/lib/constants";
 
 export type AdminOrderLineKind = "wholesale_item" | "customer";
@@ -211,9 +212,8 @@ export async function fetchAdminOrderBoardRows(
       .select(
         `
         id, reference, recipient_phone, amount, platform_fee, status, payment_provider, payment_reference,
-        supplier, supplier_reference, supplier_order_code, supplier_status, supplier_error, created_at,
-        vendors!inner ( business_name, slug ),
-        bundles ( name, network, data_mb )
+        supplier, supplier_reference, supplier_order_code, supplier_status, supplier_error, created_at, bundle_id,
+        vendors!inner ( business_name, slug )
       `,
       )
       .order("created_at", { ascending: false })
@@ -228,6 +228,11 @@ export async function fetchAdminOrderBoardRows(
     }
 
     const { data } = await orderQuery;
+
+    const bundleMap = await fetchStorefrontOrderBundlesBatch(
+      service,
+      (data ?? []).map((raw) => (raw as { bundle_id: string }).bundle_id),
+    );
 
     for (const raw of data ?? []) {
       const row = raw as {
@@ -244,11 +249,11 @@ export async function fetchAdminOrderBoardRows(
         supplier_order_code: string | null;
         supplier_status: string | null;
         created_at: string;
+        bundle_id: string;
         vendors: { business_name: string; slug: string } | { business_name: string; slug: string }[];
-        bundles: { name: string; network: string; data_mb: number } | { name: string; network: string; data_mb: number }[] | null;
       };
 
-      const bundle = Array.isArray(row.bundles) ? row.bundles[0] : row.bundles;
+      const bundle = bundleMap.get(row.bundle_id);
       const agent = vendorName(row.vendors);
       const commission = Math.max(0, Number(row.amount) - Number(row.platform_fee));
 

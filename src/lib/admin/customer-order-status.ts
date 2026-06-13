@@ -9,6 +9,7 @@ import { smsOrderFulfilled } from "@/lib/notifications/sms";
 import { formatDataAmount } from "@/lib/format";
 import { tryCreditReferralForCustomerOrder } from "@/lib/referrals/vendor-referral";
 import type { OrderStatus } from "@/lib/constants";
+import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 
 export async function applyCustomerOrderStatus(
   service: SupabaseClient,
@@ -26,10 +27,7 @@ export async function applyCustomerOrderStatus(
   const { data: existing } = await service
     .from("orders")
     .select(
-      `
-      id, vendor_id, status, amount, platform_fee, reference, recipient_phone, reward_credited_at,
-      bundles ( name, data_mb )
-    `,
+      "id, vendor_id, status, amount, platform_fee, reference, recipient_phone, reward_credited_at, bundle_id",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -46,7 +44,7 @@ export async function applyCustomerOrderStatus(
     reference: string;
     recipient_phone: string;
     reward_credited_at: string | null;
-    bundles: { name: string; data_mb: number } | { name: string; data_mb: number }[] | null;
+    bundle_id: string;
   } | null;
 
   if (status === "fulfilled" && prev && prev.status !== "fulfilled") {
@@ -65,7 +63,7 @@ export async function applyCustomerOrderStatus(
       }
     }
 
-    const bundle = Array.isArray(prev.bundles) ? prev.bundles[0] : prev.bundles;
+    const bundle = await fetchStorefrontOrderBundle(service, prev.bundle_id);
     const bundleLabel = bundle
       ? `${formatDataAmount(bundle.data_mb)} ${bundle.name}`
       : "Data bundle";
