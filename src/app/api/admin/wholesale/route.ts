@@ -15,6 +15,7 @@ const priceSchema = z.object({
   agentPrice: z.number().min(0),
   agentProPrice: z.number().min(0),
   xpressAgentPrice: z.number().min(0),
+  expressAgentPrice: z.number().min(0).optional(),
 });
 
 const schema = z.object({
@@ -63,33 +64,45 @@ export async function POST(request: Request) {
   const sku = `${body.network.toUpperCase().slice(0, 3)}-${body.dataMb}MB-${body.validityDays}D`;
 
   const service = createServiceClient();
-  const { data, error } = await service
+  const insertRow: Record<string, unknown> = {
+    network: body.network,
+    sku,
+    name: body.name,
+    data_mb: body.dataMb,
+    validity_days: body.validityDays,
+    cost_price: prices.costPrice,
+    customer_price: prices.customerPrice,
+    customer_pro_price: prices.customerProPrice,
+    agent_price: prices.agentPrice,
+    agent_pro_price: prices.agentProPrice,
+    xpress_agent_price: prices.xpressAgentPrice,
+    express_agent_price: prices.expressAgentPrice,
+    wholesale_price: legacy.wholesale_price,
+    suggested_retail: legacy.suggested_retail,
+    min_markup: body.minMarkup,
+    max_markup: body.maxMarkup ?? null,
+    active: true,
+    popular: false,
+    product_line: body.productLine ?? "standard",
+  };
+
+  let { data, error } = await service
     .from("wholesale_bundles")
-    .insert({
-      network: body.network,
-      sku,
-      name: body.name,
-      data_mb: body.dataMb,
-      validity_days: body.validityDays,
-      cost_price: prices.costPrice,
-      customer_price: prices.customerPrice,
-      customer_pro_price: prices.customerProPrice,
-      agent_price: prices.agentPrice,
-      agent_pro_price: prices.agentProPrice,
-      xpress_agent_price: prices.xpressAgentPrice,
-      wholesale_price: legacy.wholesale_price,
-      suggested_retail: legacy.suggested_retail,
-      min_markup: body.minMarkup,
-      max_markup: body.maxMarkup ?? null,
-      active: true,
-      popular: false,
-      product_line: body.productLine ?? "standard",
-    })
+    .insert(insertRow)
     .select("id")
     .single();
+  if (error && /express_agent_price/.test(error.message)) {
+    const { express_agent_price: _omit, ...legacyRow } = insertRow;
+    void _omit;
+    ({ data, error } = await service
+      .from("wholesale_bundles")
+      .insert(legacyRow)
+      .select("id")
+      .single());
+  }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error || !data) {
+    return NextResponse.json({ error: error?.message ?? "Failed to create bundle" }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, id: data.id });

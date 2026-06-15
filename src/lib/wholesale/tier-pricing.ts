@@ -8,6 +8,8 @@ export interface WholesalePriceMatrix {
   agentPrice: number;
   agentProPrice: number;
   xpressAgentPrice: number;
+  /** Buy price for Express agents (admin-assigned). Falls back to costPrice. */
+  expressAgentPrice: number;
 }
 
 type RowLike = Partial<WholesalePriceMatrix> & {
@@ -19,13 +21,15 @@ type RowLike = Partial<WholesalePriceMatrix> & {
 export function normalizeWholesalePrices(row: RowLike): WholesalePriceMatrix {
   const agentPrice = num(row.agentPrice ?? row.wholesalePrice, 0);
   const customerPrice = num(row.customerPrice ?? row.suggestedRetail, agentPrice);
+  const costPrice = num(row.costPrice, round(agentPrice * 0.93));
   return {
-    costPrice: num(row.costPrice, round(agentPrice * 0.93)),
+    costPrice,
     customerPrice,
     customerProPrice: num(row.customerProPrice, round(customerPrice * 0.93)),
     agentPrice,
     agentProPrice: num(row.agentProPrice, agentPrice),
     xpressAgentPrice: num(row.xpressAgentPrice, agentPrice),
+    expressAgentPrice: num(row.expressAgentPrice, costPrice),
   };
 }
 
@@ -34,7 +38,7 @@ export function normalizeWholesalePrices(row: RowLike): WholesalePriceMatrix {
  * starter → Agent price
  * verified → Super Agent price (stored in xpressAgentPrice column)
  * pro → Pro Agent price (stored in agentProPrice column)
- * express → Supplier cost price (manually assigned)
+ * express → Express Agent price (stored in expressAgentPrice, defaults to cost)
  */
 export function resolveAgentBuyPrice(
   prices: WholesalePriceMatrix | RowLike,
@@ -43,7 +47,7 @@ export function resolveAgentBuyPrice(
   const p = normalizeWholesalePrices(prices);
   switch (tier) {
     case "express":
-      return p.costPrice;
+      return p.expressAgentPrice;
     case "pro":
       return p.agentProPrice;
     case "verified":
@@ -56,7 +60,7 @@ export function resolveAgentBuyPrice(
 export function tierBuyPriceLabel(tier: VendorTier): string {
   switch (tier) {
     case "express":
-      return "Supplier price";
+      return "Express Agent price";
     case "pro":
       return "Pro Agent price";
     case "verified":
@@ -91,10 +95,13 @@ export function prepareWholesalePricesForSave(
   let agent = num(raw.agentPrice, 0);
   let pro = num(raw.agentProPrice, agent);
   let xpress = num(raw.xpressAgentPrice, agent);
+  // Express sits at the bottom of the ladder: at least cost, at most agent.
+  let express = num(raw.expressAgentPrice, cost);
 
   agent = Math.max(agent, cost);
   pro = clamp(pro, cost, agent);
   xpress = clamp(xpress, pro, agent);
+  express = clamp(express, cost, agent);
 
   const markup = Math.max(0, minMarkup);
   const minRetail = round(agent + markup);
@@ -105,6 +112,7 @@ export function prepareWholesalePricesForSave(
     agentPrice: agent,
     agentProPrice: pro,
     xpressAgentPrice: xpress,
+    expressAgentPrice: express,
     customerPrice: customer,
     customerProPrice: Math.min(num(raw.customerProPrice, round(customer * 0.93)), customer),
   };

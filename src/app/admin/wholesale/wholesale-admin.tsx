@@ -33,6 +33,7 @@ const EMPTY_PRICES: WholesalePriceMatrix = {
   agentPrice: 0,
   agentProPrice: 0,
   xpressAgentPrice: 0,
+  expressAgentPrice: 0,
 };
 
 function pricesFromRow(row: AdminWholesaleRow): WholesalePriceMatrix {
@@ -43,6 +44,7 @@ function pricesFromRow(row: AdminWholesaleRow): WholesalePriceMatrix {
     agentPrice: row.agentPrice,
     agentProPrice: row.agentProPrice,
     xpressAgentPrice: row.xpressAgentPrice,
+    expressAgentPrice: row.expressAgentPrice,
   };
 }
 
@@ -86,7 +88,14 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
     validityDays: 30,
     minMarkup: 0.5,
     productLine: "standard" as "standard" | "ishare" | "bigtime",
-    prices: { ...EMPTY_PRICES, costPrice: 4, agentPrice: 5, xpressAgentPrice: 4.8, agentProPrice: 4.6 },
+    prices: {
+      ...EMPTY_PRICES,
+      costPrice: 4,
+      agentPrice: 5,
+      xpressAgentPrice: 4.8,
+      agentProPrice: 4.6,
+      expressAgentPrice: 4,
+    },
   });
 
   async function saveRow(row: AdminWholesaleRow, draft: Partial<AdminWholesaleRow> & { prices?: WholesalePriceMatrix }) {
@@ -232,8 +241,9 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
             onChange={(prices) => setNewBundle((b) => ({ ...b, prices }))}
           />
           <p className="text-xs text-muted-foreground">
-            Pro ≤ Super ≤ Agent. Storefront base is auto-set to at least Agent price + min markup
-            (e.g. Agent ₵5 + markup ₵0.50 → retail ₵5.50).
+            Express ≤ Agent and Pro ≤ Super ≤ Agent. Express Agent is the admin-assigned tier (buys
+            near cost). Storefront base is auto-set to at least Agent price + min markup (e.g. Agent
+            ₵5 + markup ₵0.50 → retail ₵5.50).
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs font-medium text-muted">
@@ -325,10 +335,11 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
               description="Switch to another network tab or add a new bundle."
             />
           ) : (
-            <AdminDataTable minWidth="860px">
+            <AdminDataTable minWidth="960px">
               <AdminTableHead>
                 <AdminTh>Volume</AdminTh>
                 <AdminTh>Cost</AdminTh>
+                <AdminTh>Express</AdminTh>
                 <AdminTh>Agent</AdminTh>
                 <AdminTh>Super</AdminTh>
                 <AdminTh>Pro</AdminTh>
@@ -367,13 +378,14 @@ function PriceMatrixInputs({
 }) {
   const fields: { key: keyof WholesalePriceMatrix; label: string }[] = [
     { key: "costPrice", label: "Cost ₵" },
+    { key: "expressAgentPrice", label: "Express Agent ₵" },
     { key: "agentPrice", label: "Agent ₵" },
     { key: "xpressAgentPrice", label: "Super Agent ₵" },
     { key: "agentProPrice", label: "Pro Agent ₵" },
   ];
 
   return (
-    <div className={compact ? "flex flex-wrap gap-1.5" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-4"}>
+    <div className={compact ? "flex flex-wrap gap-1.5" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-5"}>
       {fields.map(({ key, label }) => (
         <label key={key} className="pricing-matrix-field-label">
           {!compact && label}
@@ -459,6 +471,8 @@ function WholesaleRowEditor({
   const costInvalid = prices.costPrice > prices.agentProPrice;
   const proInvalid = prices.agentProPrice > prices.xpressAgentPrice;
   const superInvalid = prices.xpressAgentPrice > prices.agentPrice;
+  const expressInvalid =
+    prices.expressAgentPrice < prices.costPrice || prices.expressAgentPrice > prices.agentPrice;
 
   return (
     <tr className={cn("admin-table-tr", dirty && "pricing-matrix-row-dirty")}>
@@ -498,6 +512,14 @@ function WholesaleRowEditor({
           value={prices.costPrice}
           invalid={costInvalid}
           onChange={(v) => setPrices((p) => ({ ...p, costPrice: v }))}
+        />
+      </td>
+      <td className="admin-table-td">
+        <PriceInput
+          title="Express Agent price"
+          value={prices.expressAgentPrice}
+          invalid={expressInvalid}
+          onChange={(v) => setPrices((p) => ({ ...p, expressAgentPrice: v }))}
         />
       </td>
       <td className="admin-table-td">

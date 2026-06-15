@@ -6,7 +6,15 @@ import type { VendorTier } from "@/types";
 import type { WholesaleBundle } from "@/types";
 
 export const WHOLESALE_SELECT =
-  "id, sku, network, name, data_mb, validity_days, cost_price, customer_price, customer_pro_price, agent_price, agent_pro_price, xpress_agent_price, wholesale_price, suggested_retail, min_markup, max_markup, popular, active, product_line";
+  "id, sku, network, name, data_mb, validity_days, cost_price, customer_price, customer_pro_price, agent_price, agent_pro_price, xpress_agent_price, express_agent_price, wholesale_price, suggested_retail, min_markup, max_markup, popular, active, product_line";
+
+/** Same as WHOLESALE_SELECT but without express_agent_price (pre-migration fallback). */
+const WHOLESALE_SELECT_LEGACY = WHOLESALE_SELECT.replace(", express_agent_price", "");
+
+/** True when a Postgres/PostgREST error is caused by the missing express column. */
+function isMissingExpressColumn(error: { message?: string } | null): boolean {
+  return !!error?.message && /express_agent_price/.test(error.message);
+}
 
 export interface WholesaleRow {
   id: string;
@@ -21,6 +29,7 @@ export interface WholesaleRow {
   agent_price: number | null;
   agent_pro_price: number | null;
   xpress_agent_price: number | null;
+  express_agent_price?: number | null;
   wholesale_price: number;
   suggested_retail: number;
   min_markup: number;
@@ -39,6 +48,7 @@ export function rowToWholesale(row: WholesaleRow): WholesaleBundle {
     agentPrice: row.agent_price ?? undefined,
     agentProPrice: row.agent_pro_price ?? undefined,
     xpressAgentPrice: row.xpress_agent_price ?? undefined,
+    expressAgentPrice: row.express_agent_price ?? undefined,
     wholesalePrice: row.wholesale_price,
     suggestedRetail: row.suggested_retail,
   });
@@ -63,15 +73,17 @@ export function rowToWholesale(row: WholesaleRow): WholesaleBundle {
 export async function fetchWholesaleCatalogue(activeOnly = true): Promise<WholesaleBundle[]> {
   if (!hasSupabaseConfig()) return [];
   const supabase = createServiceClient();
-  let query = supabase
-    .from("wholesale_bundles")
-    .select(WHOLESALE_SELECT)
-    .order("network")
-    .order("data_mb");
-  if (activeOnly) query = query.eq("active", true);
-  const { data, error } = await query;
+  const run = (select: string) => {
+    let query = supabase.from("wholesale_bundles").select(select).order("network").order("data_mb");
+    if (activeOnly) query = query.eq("active", true);
+    return query;
+  };
+  let { data, error } = await run(WHOLESALE_SELECT);
+  if (isMissingExpressColumn(error)) {
+    ({ data, error } = await run(WHOLESALE_SELECT_LEGACY));
+  }
   if (error || !data) return [];
-  return (data as WholesaleRow[]).map(rowToWholesale);
+  return (data as unknown as WholesaleRow[]).map(rowToWholesale);
 }
 
 /** Catalogue with tier-specific buy price attached for agent checkout UI. */
@@ -91,16 +103,17 @@ export type AdminWholesaleRow = WholesaleBundle & { active: boolean };
 export async function fetchAdminWholesaleCatalogue(): Promise<AdminWholesaleRow[]> {
   if (!hasSupabaseConfig()) return [];
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("wholesale_bundles")
-    .select(WHOLESALE_SELECT)
-    .order("network")
-    .order("data_mb");
+  const run = (select: string) =>
+    supabase.from("wholesale_bundles").select(select).order("network").order("data_mb");
+  let { data, error } = await run(WHOLESALE_SELECT);
+  if (isMissingExpressColumn(error)) {
+    ({ data, error } = await run(WHOLESALE_SELECT_LEGACY));
+  }
   if (error || !data) {
     console.error("[fetchAdminWholesaleCatalogue]", error);
     return [];
   }
-  return (data as WholesaleRow[]).map((row) => ({
+  return (data as unknown as WholesaleRow[]).map((row) => ({
     ...rowToWholesale(row),
     active: row.active,
   }));
@@ -120,16 +133,21 @@ interface ListingRow {
 export async function fetchVendorListings(vendorId: string, tier: VendorTier = "starter") {
   if (!hasSupabaseConfig()) return [];
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("vendor_listings")
-    .select(
-      `
+  const run = (bundleSelect: string) =>
+    supabase
+      .from("vendor_listings")
+      .select(
+        `
       id, vendor_id, wholesale_bundle_id, markup_amount, custom_name, active, sales_count,
-      wholesale_bundles (${WHOLESALE_SELECT})
+      wholesale_bundles (${bundleSelect})
       `,
-    )
-    .eq("vendor_id", vendorId)
-    .order("created_at", { ascending: false });
+      )
+      .eq("vendor_id", vendorId)
+      .order("created_at", { ascending: false });
+  let { data, error } = await run(WHOLESALE_SELECT);
+  if (isMissingExpressColumn(error)) {
+    ({ data, error } = await run(WHOLESALE_SELECT_LEGACY));
+  }
   if (error || !data) return [];
 
   return (data as unknown as ListingRow[]).map((row) => {

@@ -114,6 +114,8 @@ export interface WholesaleBundle {
   agentProPrice: number;
   /** Super Agent buy price (verified tier). */
   xpressAgentPrice: number;
+  /** Express Agent buy price (admin-assigned tier). Falls back to costPrice. */
+  expressAgentPrice: number;
   /** @deprecated use agentPrice — kept for API compat */
   wholesalePrice: number;
   /** @deprecated use customerPrice */

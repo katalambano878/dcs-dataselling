@@ -15,6 +15,7 @@ const priceSchema = z.object({
   agentPrice: z.number().min(0).optional(),
   agentProPrice: z.number().min(0).optional(),
   xpressAgentPrice: z.number().min(0).optional(),
+  expressAgentPrice: z.number().min(0).optional(),
 });
 
 const schema = z.object({
@@ -51,13 +52,23 @@ export async function PATCH(
   }
 
   const service = createServiceClient();
-  const { data: existing } = await service
+  let existingResult = await service
     .from("wholesale_bundles")
     .select(
-      "cost_price, customer_price, customer_pro_price, agent_price, agent_pro_price, xpress_agent_price, wholesale_price, suggested_retail, min_markup",
+      "cost_price, customer_price, customer_pro_price, agent_price, agent_pro_price, xpress_agent_price, express_agent_price, wholesale_price, suggested_retail, min_markup",
     )
     .eq("id", id)
     .maybeSingle();
+  if (existingResult.error && /express_agent_price/.test(existingResult.error.message)) {
+    existingResult = await service
+      .from("wholesale_bundles")
+      .select(
+        "cost_price, customer_price, customer_pro_price, agent_price, agent_pro_price, xpress_agent_price, wholesale_price, suggested_retail, min_markup",
+      )
+      .eq("id", id)
+      .maybeSingle();
+  }
+  const existing = existingResult.data;
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
@@ -73,6 +84,8 @@ export async function PATCH(
         agentPrice: body.prices?.agentPrice ?? body.wholesalePrice ?? row?.agent_price ?? undefined,
         agentProPrice: body.prices?.agentProPrice ?? row?.agent_pro_price ?? undefined,
         xpressAgentPrice: body.prices?.xpressAgentPrice ?? row?.xpress_agent_price ?? undefined,
+        expressAgentPrice:
+          body.prices?.expressAgentPrice ?? row?.express_agent_price ?? undefined,
         wholesalePrice: row?.wholesale_price ?? undefined,
         suggestedRetail: row?.suggested_retail ?? undefined,
       },
@@ -89,6 +102,7 @@ export async function PATCH(
     updates.agent_price = merged.agentPrice;
     updates.agent_pro_price = merged.agentProPrice;
     updates.xpress_agent_price = merged.xpressAgentPrice;
+    updates.express_agent_price = merged.expressAgentPrice;
     updates.wholesale_price = legacy.wholesale_price;
     updates.suggested_retail = legacy.suggested_retail;
   }
@@ -100,7 +114,12 @@ export async function PATCH(
   if (body.name !== undefined) updates.name = body.name;
   if (body.productLine !== undefined) updates.product_line = body.productLine;
 
-  const { error } = await service.from("wholesale_bundles").update(updates).eq("id", id);
+  let { error } = await service.from("wholesale_bundles").update(updates).eq("id", id);
+  if (error && /express_agent_price/.test(error.message)) {
+    const { express_agent_price: _omit, ...legacyUpdates } = updates;
+    void _omit;
+    ({ error } = await service.from("wholesale_bundles").update(legacyUpdates).eq("id", id));
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
