@@ -11,39 +11,45 @@ import {
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, x-api-key, Content-Type",
+  "Access-Control-Allow-Headers": "x-api-key, Authorization, Content-Type",
   "Access-Control-Max-Age": "86400",
 };
 
-export interface ApiHandlerContext {
+export interface ExternalHandlerContext {
   ctx: ApiKeyContext;
   body: unknown;
   ip: string | null;
   userAgent: string | null;
-  url: URL;
   params: Record<string, string>;
-  durationMs: () => number;
 }
 
-export interface ApiHandlerResult {
+export interface ExternalHandlerResult {
   status?: number;
-  json: unknown;
-  /** Short summary stored in the audit log (no PII beyond what came in) */
-  responseSummary?: unknown;
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+  error?: string;
 }
 
-/**
- * Wraps a /api/v1/* handler so it gets:
- *  - Bearer-key authentication (responds 401 if missing/invalid)
- *  - Request body parsing (JSON)
- *  - Uniform CORS headers
- *  - Automatic audit logging via vendor_api_logs
- *
- * Usage:
- *   export const POST = handleApi(async ({ ctx, body }) => ({ json: { ... } }));
- */
-export function handleApi(
-  fn: (handler: ApiHandlerContext) => Promise<ApiHandlerResult>,
+export function externalJson(
+  result: ExternalHandlerResult,
+  status?: number,
+): NextResponse {
+  const httpStatus = status ?? result.status ?? (result.success === false ? 400 : 200);
+  if (result.success === false || result.error) {
+    return NextResponse.json(
+      { success: false, error: result.error ?? "Request failed" },
+      { status: httpStatus, headers: CORS_HEADERS },
+    );
+  }
+  const payload: Record<string, unknown> = { success: true };
+  if (result.message) payload.message = result.message;
+  if (result.data !== undefined) payload.data = result.data;
+  return NextResponse.json(payload, { status: httpStatus, headers: CORS_HEADERS });
+}
+
+export function handleExternalApi(
+  fn: (handler: ExternalHandlerContext) => Promise<ExternalHandlerResult>,
   options: { method?: string; endpoint?: string } = {},
 ) {
   return async function handler(
@@ -68,9 +74,6 @@ export function handleApi(
     const auth = await authenticateApiKey(request);
     if (!auth.ok) {
       await logApiCall({
-        vendorId: undefined,
-        keyId: null,
-        keyPrefix: null,
         endpoint: `${method} ${endpoint}`,
         method,
         httpStatus: auth.status,
@@ -79,7 +82,7 @@ export function handleApi(
         userAgent,
         error: auth.error,
       });
-      return jsonResponse({ error: auth.error, code: auth.code }, auth.status);
+      return externalJson({ success: false, error: auth.error }, auth.status);
     }
 
     let body: unknown = null;
@@ -88,17 +91,7 @@ export function handleApi(
         const text = await request.text();
         body = text ? JSON.parse(text) : null;
       } catch {
-        await logApiCall({
-          ctx: auth.ctx,
-          endpoint: `${method} ${endpoint}`,
-          method,
-          httpStatus: 400,
-          durationMs: Math.round(performance.now() - startedAt),
-          ip,
-          userAgent,
-          error: "Invalid JSON body",
-        });
-        return jsonResponse({ error: "Invalid JSON body", code: "invalid_json" }, 400);
+        return externalJson({ success: false, error: "Invalid JSON body" }, 400);
       }
     }
 
@@ -111,39 +104,24 @@ export function handleApi(
       }
     }
 
-    let url: URL;
     try {
-      url = new URL(request.url);
-    } catch {
-      url = new URL("http://localhost" + endpoint);
-    }
-
-    try {
-      const result = await fn({
-        ctx: auth.ctx,
-        body,
-        ip,
-        userAgent,
-        url,
-        params,
-        durationMs: () => Math.round(performance.now() - startedAt),
-      });
-      const status = result.status ?? 200;
+      const result = await fn({ ctx: auth.ctx, body, ip, userAgent, params });
+      const httpStatus = result.status ?? 200;
       await logApiCall({
         ctx: auth.ctx,
         endpoint: `${method} ${endpoint}`,
         method,
-        httpStatus: status,
+        httpStatus,
         durationMs: Math.round(performance.now() - startedAt),
         ip,
         userAgent,
         requestBody: body,
-        responseSummary: result.responseSummary,
+        responseSummary: result.data,
       });
-      return jsonResponse(result.json, status);
+      return externalJson(result, httpStatus);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Internal error";
-      console.error(`[api/v1] ${method} ${endpoint}`, err);
+      console.error(`[api/external] ${method} ${endpoint}`, err);
       await logApiCall({
         ctx: auth.ctx,
         endpoint: `${method} ${endpoint}`,
@@ -155,20 +133,43 @@ export function handleApi(
         requestBody: body,
         error: msg,
       });
-      return jsonResponse({ error: "Internal error", code: "internal_error" }, 500);
+      return externalJson({ success: false, error: "Internal error" }, 500);
     }
   };
 }
 
-export function jsonResponse(payload: unknown, status: number): NextResponse {
-  return NextResponse.json(payload, {
-    status,
-    headers: CORS_HEADERS,
-  });
+export function externalCorsPreflight(): Response {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export function corsPreflightResponse(): Response {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+/** Map internal wholesale status to external API labels. */
+export function externalOrderStatus(status: string): string {
+  switch (status) {
+    case "fulfilled":
+      return "Completed";
+    case "processing":
+    case "queued":
+      return "Processing";
+    case "cancelled":
+    case "failed":
+      return "Cancelled";
+    default:
+      return "Pending";
+  }
+}
+
+export function externalItemStatus(status: string): string {
+  switch (status) {
+    case "fulfilled":
+      return "Completed";
+    case "processing":
+    case "queued":
+      return "Processing";
+    case "failed":
+      return "Cancelled";
+    default:
+      return "Pending";
+  }
 }
 
 export function normalizeGhanaPhone(raw: string): string | null {

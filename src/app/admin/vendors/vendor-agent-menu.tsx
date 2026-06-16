@@ -11,6 +11,7 @@ import {
   MinusCircle,
   PlusCircle,
   ShieldCheck,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -182,6 +183,29 @@ export function VendorAgentMenu({
     }
   }
 
+  async function deleteAgent() {
+    if (
+      !window.confirm(
+        `Permanently delete "${businessName}"? Their store and wallet will be removed so they can register again. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setPending("delete");
+    try {
+      const res = await fetch(`/api/admin/vendors/${vendorId}`, { method: "DELETE" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      toast.success("Agent deleted — they can create a new account");
+      setOpen(false);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setPending(null);
+    }
+  }
+
   async function resetPassword() {
     if (!confirm("Reset this agent's password? They will receive the new password by SMS if a phone is on file.")) {
       return;
@@ -327,6 +351,16 @@ export function VendorAgentMenu({
                     loading={pending === "reset"}
                     onClick={resetPassword}
                   />
+
+                  {(status === "suspended" || status === "rejected") && (
+                    <MenuButton
+                      icon={Trash2}
+                      label="Delete agent"
+                      hint="Remove account entirely so they can register again"
+                      loading={pending === "delete"}
+                      onClick={() => void deleteAgent()}
+                    />
+                  )}
 
                   {tempPassword && (
                     <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100">

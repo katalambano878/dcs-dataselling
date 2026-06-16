@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Activity,
   CheckCircle2,
+  CreditCard,
   Crown,
   FileSpreadsheet,
   FileText,
@@ -91,6 +92,13 @@ export function AgentHome({
               <Smartphone className="h-3.5 w-3.5" />
               ClaimIt
             </Link>
+            <Link
+              href="/vendor/dashboard/wallet?tab=paystack"
+              className="susu-btn-gold hidden sm:inline-flex"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              Paystack
+            </Link>
             <Link href="/vendor/dashboard/wallet" className="susu-btn-ghost hidden sm:inline-flex">
               My wallet
             </Link>
@@ -110,11 +118,18 @@ export function AgentHome({
             <p className="vault-hero-amount mt-2">{formatGHS(balance)}</p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Link
+                href="/vendor/dashboard/wallet?tab=paystack"
+                className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 transition hover:brightness-105"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Paystack top-up
+              </Link>
+              <Link
                 href="/vendor/dashboard/claim"
                 className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:brightness-105"
               >
                 <Smartphone className="h-3.5 w-3.5" />
-                ClaimIt — Top up wallet
+                ClaimIt top-up
               </Link>
               <span className="vault-hero-pill-success">
                 <Zap className="h-3 w-3" />
@@ -199,18 +214,22 @@ export function AgentHome({
             <Wallet className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h4 className="font-bold text-blue-900">Top up with MoMo ClaimIt.</h4>
+            <h4 className="font-bold text-blue-900">Top up your wallet</h4>
             <p className="text-xs text-blue-800">
-              Generate a payment code, send MoMo, and your wallet credits automatically.
+              Use Paystack for quick small top-ups, or ClaimIt for larger MoMo transfers without
+              extra fees.
             </p>
           </div>
-          <Link
-            href="/vendor/dashboard/claim"
-            className="ml-auto susu-btn-gold shrink-0"
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-            ClaimIt
-          </Link>
+          <div className="ml-auto flex shrink-0 flex-wrap gap-1.5">
+            <Link href="/vendor/dashboard/wallet?tab=paystack" className="susu-btn-gold">
+              <CreditCard className="h-3.5 w-3.5" />
+              Paystack
+            </Link>
+            <Link href="/vendor/dashboard/claim" className="susu-btn-ghost">
+              <Smartphone className="h-3.5 w-3.5" />
+              ClaimIt
+            </Link>
+          </div>
         </section>
       )}
 

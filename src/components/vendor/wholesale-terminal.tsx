@@ -12,10 +12,8 @@ import {
 } from "lucide-react";
 import { WishlistToggle } from "@/components/wishlist/wishlist-toggle";
 import { BulkOrdersPanel } from "@/components/vendor/bulk-orders-panel";
-import {
-  MomoClaimItPanel,
-  type MomoClaimItConfig,
-} from "@/components/vendor/momo-claimit-panel";
+import type { MomoClaimItConfig } from "@/components/vendor/momo-claimit-panel";
+import { WalletTopupPanel } from "@/components/vendor/wallet-topup-panel";
 import { toast } from "sonner";
 import type { NetworkId } from "@/lib/constants";
 import { formatDataAmount, formatGHS } from "@/lib/format";
@@ -212,7 +210,7 @@ export function WholesaleTerminal({
               onClick={() => setTopupOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
-              ClaimIt
+              Top up
             </Button>
             <button
               type="button"
@@ -450,14 +448,15 @@ export function WholesaleTerminal({
           />
           <div className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-white/10 bg-navy-950 p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold">Mobile Money ClaimIt</h3>
+              <h3 className="font-bold">Top up wallet</h3>
               <button type="button" onClick={() => setTopupOpen(false)} className="rounded p-1 hover:bg-white/10">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="mt-4">
-              <MomoClaimItPanel
-                config={
+              <WalletTopupPanel
+                compact
+                momoConfig={
                   momoClaimIt ?? {
                     enabled: false,
                     merchantNumber: "",
@@ -469,7 +468,6 @@ export function WholesaleTerminal({
                   void refreshBalance();
                   setTopupOpen(false);
                 }}
-                onCancel={() => setTopupOpen(false)}
               />
             </div>
           </div>

@@ -32,8 +32,11 @@ function hashKey(plain: string): string {
   return crypto.createHash("sha256").update(plain).digest("hex");
 }
 
-/** Extract the Bearer token from an incoming request (Authorization header). */
+/** Extract API key from x-api-key header or Authorization: Bearer. */
 export function extractApiKey(request: Request | NextRequest): string | null {
+  const xKey = request.headers.get("x-api-key")?.trim();
+  if (xKey) return xKey.length > 0 ? xKey : null;
+
   const auth = request.headers.get("authorization");
   if (!auth) return null;
   const match = auth.match(/^Bearer\s+(.+)$/i);

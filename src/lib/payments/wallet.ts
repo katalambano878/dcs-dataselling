@@ -116,7 +116,7 @@ export async function initializeWalletTopupPaystack(params: {
         vendor_id: params.vendorId,
       },
       channels: ["mobile_money", "card"],
-      callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/vendor/dashboard/wholesale?topup=1&ref=${params.reference}`,
+      callback_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? SITE.url}/vendor/dashboard/wallet?topup=1&ref=${params.reference}`,
     }),
   });
 

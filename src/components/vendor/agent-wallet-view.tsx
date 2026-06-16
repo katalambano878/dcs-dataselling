@@ -162,8 +162,15 @@ export function AgentWalletView({ metrics, ledger, embedded = false }: Props) {
 
         <p className="mt-3 text-center text-[11px] text-muted">
           Need more balance?{" "}
+          <Link
+            href="/vendor/dashboard/wallet?tab=paystack"
+            className="font-semibold text-cyan-700 hover:underline"
+          >
+            Paystack
+          </Link>
+          {" · "}
           <Link href="/vendor/dashboard/claim" className="font-semibold text-amber-800 hover:underline">
-            Open ClaimIt to top up
+            ClaimIt
           </Link>
         </p>
       </AdminSection>

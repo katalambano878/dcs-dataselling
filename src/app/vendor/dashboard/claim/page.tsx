@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Smartphone } from "lucide-react";
+import { Smartphone, Wallet } from "lucide-react";
 import { AdminPageIntro, AdminPageRoot, AdminSection } from "@/components/admin";
-import { MomoClaimItPanel } from "@/components/vendor/momo-claimit-panel";
+import { WalletTopupSection } from "@/components/vendor/wallet-topup-section";
 import { SetupFeeGate } from "@/components/vendor/setup-fee-gate";
 import { getCurrentVendor } from "@/lib/auth/session";
 import { getMomoDirectConfig } from "@/lib/data/platform-config";
@@ -9,7 +10,7 @@ import { primaryMerchantNumber } from "@/lib/payments/wallet-momo-claim";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClaimItPage() {
+export default async function VendorClaimPage() {
   const vendor = await getCurrentVendor();
   if (!vendor) redirect("/auth/login");
   if (!vendor.setupFeePaidAt) return <SetupFeeGate />;
@@ -19,24 +20,31 @@ export default async function ClaimItPage() {
   return (
     <AdminPageRoot>
       <AdminPageIntro
-        badge="ClaimIt"
-        description="Send Mobile Money to credit your wallet — generate a payment code for instant top-up, or paste your transaction ID to claim manually."
+        badge="Wallet top-up"
+        description="ClaimIt for large MoMo transfers, or switch to Paystack for quick small top-ups."
+        actions={
+          <Link href="/vendor/dashboard/wallet?tab=paystack" className="susu-btn-ghost">
+            Paystack top-up
+          </Link>
+        }
       />
-      <AdminSection
-        title="Mobile Money ClaimIt"
-        description="Use the merchant number below. Add your payment code as the MoMo reference for automatic wallet credit."
-        icon={Smartphone}
-      >
-        <MomoClaimItPanel
-          config={{
+      <AdminSection title="ClaimIt or Paystack" icon={Smartphone}>
+        <WalletTopupSection
+          defaultMethod="claimit"
+          momoConfig={{
             enabled: momo.enabled,
             merchantNumber: primaryMerchantNumber(momo.merchantNumbers),
             merchantName: momo.merchantName || "DCS Elite",
             merchantNumbers: momo.merchantNumbers,
           }}
-          showCancel={false}
         />
       </AdminSection>
+      <p className="text-center text-xs text-muted">
+        <Link href="/vendor/dashboard/wallet" className="inline-flex items-center gap-1 font-semibold text-cyan-700 hover:underline">
+          <Wallet className="h-3.5 w-3.5" />
+          View wallet balance & history
+        </Link>
+      </p>
     </AdminPageRoot>
   );
 }
