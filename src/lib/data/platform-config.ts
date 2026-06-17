@@ -56,3 +56,19 @@ export async function getMomoDirectConfig() {
   const config = await getPlatformConfig();
   return config.momoDirect;
 }
+
+export async function getPaystackFeePercent(): Promise<number> {
+  const config = await getPlatformConfig();
+  return config.paystackFeePercent ?? 0;
+}
+
+/**
+ * Given the amount an agent wants credited to their wallet, return the gross
+ * amount to charge on Paystack (base + fee) so the agent bears the fee.
+ */
+export function applyPaystackFee(baseAmount: number, feePercent: number) {
+  const pct = Number.isFinite(feePercent) && feePercent > 0 ? feePercent : 0;
+  const fee = +((baseAmount * pct) / 100).toFixed(2);
+  const gross = +(baseAmount + fee).toFixed(2);
+  return { base: +baseAmount.toFixed(2), fee, gross, feePercent: pct };
+}

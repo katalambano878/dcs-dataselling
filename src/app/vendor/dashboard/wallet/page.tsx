@@ -6,9 +6,10 @@ import { AgentWalletView } from "@/components/vendor/agent-wallet-view";
 import { WalletTopupSection } from "@/components/vendor/wallet-topup-section";
 import { SetupFeeGate } from "@/components/vendor/setup-fee-gate";
 import { getCurrentVendor } from "@/lib/auth/session";
-import { getMomoDirectConfig } from "@/lib/data/platform-config";
+import { getMomoDirectConfig, getPaystackFeePercent } from "@/lib/data/platform-config";
 import { fetchVendorWalletLedger, fetchVendorWalletMetrics } from "@/lib/data/vendor-agent";
 import { primaryMerchantNumber } from "@/lib/payments/wallet-momo-claim";
+import { verifyWalletTopupWithPaystack } from "@/lib/payments/wallet";
 import type { WalletTopupMethod } from "@/components/vendor/wallet-topup-panel";
 
 export const dynamic = "force-dynamic";
@@ -16,20 +17,28 @@ export const dynamic = "force-dynamic";
 export default async function VendorWalletPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; method?: string }>;
+  searchParams: Promise<{ tab?: string; method?: string; topup?: string; ref?: string }>;
 }) {
   const vendor = await getCurrentVendor();
   if (!vendor) redirect("/auth/login");
   if (!vendor.setupFeePaidAt) return <SetupFeeGate />;
 
   const params = await searchParams;
+
+  // Paystack returns the agent here after payment. If the webhook was missed,
+  // verify the charge now so the balance reflects immediately.
+  if (params.ref) {
+    await verifyWalletTopupWithPaystack(params.ref);
+  }
+
   const defaultMethod: WalletTopupMethod =
     params.tab === "paystack" || params.method === "paystack" ? "paystack" : "claimit";
 
-  const [metrics, ledger, momo] = await Promise.all([
+  const [metrics, ledger, momo, paystackFeePercent] = await Promise.all([
     fetchVendorWalletMetrics(vendor.id),
     fetchVendorWalletLedger(vendor.id),
     getMomoDirectConfig(),
+    getPaystackFeePercent(),
   ]);
 
   const momoConfig = {
@@ -46,7 +55,11 @@ export default async function VendorWalletPage({
         description="Choose ClaimIt (MoMo, no fees on large amounts) or Paystack (card/MoMo, best for small top-ups)."
         icon={Wallet}
       >
-        <WalletTopupSection momoConfig={momoConfig} defaultMethod={defaultMethod} />
+        <WalletTopupSection
+          momoConfig={momoConfig}
+          defaultMethod={defaultMethod}
+          paystackFeePercent={paystackFeePercent}
+        />
       </AdminSection>
       <AgentWalletView metrics={metrics} ledger={ledger} embedded />
     </AdminPageRoot>

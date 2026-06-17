@@ -5,7 +5,7 @@ import { AdminPageIntro, AdminPageRoot, AdminSection } from "@/components/admin"
 import { WalletTopupSection } from "@/components/vendor/wallet-topup-section";
 import { SetupFeeGate } from "@/components/vendor/setup-fee-gate";
 import { getCurrentVendor } from "@/lib/auth/session";
-import { getMomoDirectConfig } from "@/lib/data/platform-config";
+import { getMomoDirectConfig, getPaystackFeePercent } from "@/lib/data/platform-config";
 import { primaryMerchantNumber } from "@/lib/payments/wallet-momo-claim";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,10 @@ export default async function VendorClaimPage() {
   if (!vendor) redirect("/auth/login");
   if (!vendor.setupFeePaidAt) return <SetupFeeGate />;
 
-  const momo = await getMomoDirectConfig();
+  const [momo, paystackFeePercent] = await Promise.all([
+    getMomoDirectConfig(),
+    getPaystackFeePercent(),
+  ]);
 
   return (
     <AdminPageRoot>
@@ -31,6 +34,7 @@ export default async function VendorClaimPage() {
       <AdminSection title="ClaimIt or Paystack" icon={Smartphone}>
         <WalletTopupSection
           defaultMethod="claimit"
+          paystackFeePercent={paystackFeePercent}
           momoConfig={{
             enabled: momo.enabled,
             merchantNumber: primaryMerchantNumber(momo.merchantNumbers),

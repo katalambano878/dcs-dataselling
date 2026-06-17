@@ -5,6 +5,7 @@ import {
   createWalletTopup,
   initializeWalletTopupPaystack,
 } from "@/lib/payments/wallet";
+import { applyPaystackFee, getPaystackFeePercent } from "@/lib/data/platform-config";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 
 const schema = z.object({
@@ -21,13 +22,19 @@ export async function POST(request: Request) {
 
   try {
     const { amount } = schema.parse(await request.json());
-    const topup = await createWalletTopup(ctx.vendorId, amount);
+
+    // Agent bears the Paystack fee: credit `amount`, charge `amount + fee`.
+    const feePercent = await getPaystackFeePercent();
+    const { base, fee, gross } = applyPaystackFee(amount, feePercent);
+
+    // Store the credit (base) amount — that is what lands in the wallet.
+    const topup = await createWalletTopup(ctx.vendorId, base);
 
     const authUrl = await initializeWalletTopupPaystack({
       email: ctx.email ?? `vendor@dcselite.com`,
       vendorId: ctx.vendorId,
       reference: topup.reference,
-      amount,
+      amount: gross,
     });
 
     if (!authUrl) {
@@ -40,7 +47,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       authorizationUrl: authUrl,
       reference: topup.reference,
-      amount,
+      amount: base,
+      fee,
+      gross,
+      feePercent,
     });
   } catch (e) {
     if (e instanceof z.ZodError) {

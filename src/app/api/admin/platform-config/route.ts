@@ -21,6 +21,7 @@ const schema = z.object({
   vendorSetupFeeGhs: z.number().min(1).max(100000).optional(),
   recipientOrderCooldownMinutes: z.number().min(1).max(3).optional(),
   referralRewardGhs: z.number().min(1).max(10000).optional(),
+  paystackFeePercent: z.number().min(0).max(10).optional(),
   momoDirect: momoDirectSchema.optional(),
   supplierRouting: z
     .object({

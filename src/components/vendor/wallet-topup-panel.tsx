@@ -16,6 +16,7 @@ interface Props {
   momoConfig: MomoClaimItConfig;
   defaultMethod?: WalletTopupMethod;
   compact?: boolean;
+  paystackFeePercent?: number;
   onSuccess?: () => void;
 }
 
@@ -23,11 +24,17 @@ export function WalletTopupPanel({
   momoConfig,
   defaultMethod = "claimit",
   compact = false,
+  paystackFeePercent = 0,
   onSuccess,
 }: Props) {
   const [method, setMethod] = useState<WalletTopupMethod>(defaultMethod);
   const [amount, setAmount] = useState("50");
   const [loading, setLoading] = useState(false);
+
+  const feePct = Number.isFinite(paystackFeePercent) && paystackFeePercent > 0 ? paystackFeePercent : 0;
+  const baseAmount = Number(amount) || 0;
+  const feeAmount = +((baseAmount * feePct) / 100).toFixed(2);
+  const grossAmount = +(baseAmount + feeAmount).toFixed(2);
 
   async function startPaystack() {
     const value = Number(amount);
@@ -94,6 +101,13 @@ export function WalletTopupPanel({
             Pay with card or MoMo via Paystack. Best for small top-ups (₵10–₵200). Paystack charges
             apply.
           </p>
+          {feePct > 0 && baseAmount > 0 ? (
+            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100/90">
+              You pay <span className="font-bold">₵{grossAmount.toFixed(2)}</span> (includes ₵
+              {feeAmount.toFixed(2)} Paystack fee · {feePct}%). Your wallet is credited{" "}
+              <span className="font-bold">₵{baseAmount.toFixed(2)}</span>.
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-1.5">
             {TOPUP_PRESETS.map((preset) => (
               <button

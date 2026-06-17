@@ -26,15 +26,24 @@ function TopupSuccessHandler() {
 interface Props {
   momoConfig: MomoClaimItConfig;
   defaultMethod?: WalletTopupMethod;
+  paystackFeePercent?: number;
 }
 
-export function WalletTopupSection({ momoConfig, defaultMethod = "claimit" }: Props) {
+export function WalletTopupSection({
+  momoConfig,
+  defaultMethod = "claimit",
+  paystackFeePercent = 0,
+}: Props) {
   return (
     <>
       <Suspense fallback={null}>
         <TopupSuccessHandler />
       </Suspense>
-      <WalletTopupPanel momoConfig={momoConfig} defaultMethod={defaultMethod} />
+      <WalletTopupPanel
+        momoConfig={momoConfig}
+        defaultMethod={defaultMethod}
+        paystackFeePercent={paystackFeePercent}
+      />
     </>
   );
 }

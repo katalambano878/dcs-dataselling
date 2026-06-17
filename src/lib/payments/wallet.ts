@@ -184,6 +184,32 @@ export async function markWalletTopupPaid(
   };
 }
 
+/**
+ * Fallback when the Paystack webhook is missed — called when the agent lands
+ * back on the wallet page with ?ref=. Verifies the charge with Paystack and
+ * credits the wallet. Idempotent: markWalletTopupPaid only acts on `pending`.
+ */
+export async function verifyWalletTopupWithPaystack(
+  reference: string,
+): Promise<WalletTopupCompletion | null> {
+  if (!reference || !reference.startsWith("DCS-WALLET")) return null;
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) return null;
+
+  const res = await fetch(
+    `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+    { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" },
+  );
+  const payload = (await res.json()) as {
+    status?: boolean;
+    data?: { status?: string };
+  };
+
+  if (!payload.status || payload.data?.status !== "success") return null;
+
+  return markWalletTopupPaid(reference, reference);
+}
+
 export async function creditVendorWallet(
   vendorId: string,
   amount: number,

@@ -167,6 +167,25 @@ export function PlatformConfigEditor({ initialConfig }: Props) {
             className="admin-form-field-input"
           />
         </Field>
+        <Field
+          label="Paystack fee charged to agent (%)"
+          hint="Added on top of a wallet top-up so the agent bears Paystack's charge (e.g. 2 → agent pays ₵102 to add ₵100). 0 = DCS absorbs the fee. ClaimIt is never charged."
+        >
+          <input
+            type="number"
+            min={0}
+            max={10}
+            step={0.1}
+            value={config.paystackFeePercent}
+            onChange={(e) =>
+              setConfig((c) => ({
+                ...c,
+                paystackFeePercent: Number(e.target.value),
+              }))
+            }
+            className="admin-form-field-input"
+          />
+        </Field>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">

@@ -50,6 +50,11 @@ export interface PlatformConfig {
   recipientOrderCooldownMinutes: number;
   /** Reward (GHS) credited to referrer when an invited agent completes their first sale. */
   referralRewardGhs: number;
+  /**
+   * Paystack fee percentage added on top of a wallet top-up so the agent bears
+   * the processing cost (e.g. 2 = agent pays amount + 2%). 0 disables the fee.
+   */
+  paystackFeePercent: number;
   /** SMS-forwarder-based direct MoMo payment settings. */
   momoDirect: MomoDirectConfig;
   /** Per-network supplier overrides (admin-controlled without env redeploy). */
@@ -66,6 +71,7 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
       : 50,
   recipientOrderCooldownMinutes: 3,
   referralRewardGhs: 10,
+  paystackFeePercent: 0,
   momoDirect: {
     enabled: false,
     merchantNumbers: { mtn: "", telecel: "", at: "" },
@@ -97,6 +103,7 @@ export function normalizePlatformConfig(input: unknown): PlatformConfig {
       3,
     ),
     referralRewardGhs: clampNum(raw.referralRewardGhs, base.referralRewardGhs, 1, 10000),
+    paystackFeePercent: clampNum(raw.paystackFeePercent, base.paystackFeePercent, 0, 10),
     momoDirect: normalizeMomoDirect(raw.momoDirect, base.momoDirect),
     supplierRouting: normalizeSupplierRouting(raw.supplierRouting, base.supplierRouting),
     contact: normalizeContact(raw.contact, base.contact),
