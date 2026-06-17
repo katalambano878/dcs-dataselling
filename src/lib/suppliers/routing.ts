@@ -12,6 +12,7 @@ import type { SupplierClient, SupplierNetworkSlug } from "./types";
 const SUPPLIER_LABELS: Record<NetworkSupplierId, string> = {
   skanka5: "Skanka5",
   successbizhub: "DataCoreGH",
+  railwayexternal: "Railway API",
   manual: "Manual fulfilment (no automated supplier)",
 };
 

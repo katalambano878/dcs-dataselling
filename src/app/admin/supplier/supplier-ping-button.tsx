@@ -10,7 +10,7 @@ export function SupplierPingButton({
   label,
 }: {
   disabled?: boolean;
-  supplier?: "skanka5" | "successbizhub";
+  supplier?: "skanka5" | "successbizhub" | "railwayexternal";
   label?: string;
 }) {
   const router = useRouter();

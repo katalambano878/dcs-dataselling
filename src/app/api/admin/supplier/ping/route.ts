@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertAdminApi } from "@/lib/auth/admin-api";
 import { getSupplierById } from "@/lib/suppliers/registry";
+import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured, pingSupplier as pingSkanka5 } from "@/lib/suppliers/skanka5";
 import { isSuccessBizHubConfigured, pingSupplier as pingSuccessBizHub } from "@/lib/suppliers/successbizhub";
 
@@ -13,6 +14,26 @@ export async function POST(request: Request) {
 
   const supplierId =
     new URL(request.url).searchParams.get("supplier")?.trim().toLowerCase() ?? "skanka5";
+
+  if (supplierId === "railwayexternal" || supplierId === "railway") {
+    if (!isRailwayExternalConfigured()) {
+      return NextResponse.json({ error: "RAILWAY_EXTERNAL_API_KEY not set" }, { status: 503 });
+    }
+    const client = getSupplierById("railwayexternal");
+    if (!client?.ping) {
+      return NextResponse.json({ error: "Railway supplier not available" }, { status: 503 });
+    }
+    const result = await client.ping();
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error ?? "Ping failed" }, { status: 502 });
+    }
+    return NextResponse.json({
+      ok: true,
+      supplier: "railwayexternal",
+      label: "Products catalogue",
+      data: result.raw,
+    });
+  }
 
   if (supplierId === "successbizhub") {
     if (!isSuccessBizHubConfigured()) {

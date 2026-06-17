@@ -21,6 +21,7 @@ import {
   AdminStatusBadge,
 } from "@/components/admin";
 import { requireRole } from "@/lib/auth/session";
+import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured } from "@/lib/suppliers/skanka5";
 import { isSuccessBizHubConfigured } from "@/lib/suppliers/successbizhub";
 import { getPlatformConfig } from "@/lib/data/platform-config";
@@ -31,6 +32,7 @@ import {
   fetchFailedSupplierOrders,
   fetchAwaitingManualOrders,
 } from "@/lib/data/supplier-logs";
+import { SupplierPollRailwayButton } from "./supplier-poll-railway-button";
 import { SupplierPingButton } from "./supplier-ping-button";
 import { SupplierLogTable } from "./supplier-log-table";
 import { FailedOrderList } from "./failed-order-list";
@@ -54,6 +56,7 @@ export default async function SupplierConsolePage() {
 
   const configured = isSkanka5Configured();
   const sbhConfigured = isSuccessBizHubConfigured();
+  const railwayConfigured = isRailwayExternalConfigured();
   const webhookConfigured = Boolean(process.env.SKANKA5_WEBHOOK_SECRET);
   const unsignedMode = process.env.SKANKA5_ALLOW_UNSIGNED_WEBHOOKS === "1";
 
@@ -68,9 +71,15 @@ export default async function SupplierConsolePage() {
 
   const SUPPLIER_SHORT: Record<string, string> = {
     skanka5: "Skanka5",
-    successbizhub: "Success Biz Hub",
+    successbizhub: "DataCoreGH",
+    railwayexternal: "Railway API",
     manual: "Manual",
   };
+
+  const railwayEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
+    { name: "RAILWAY_EXTERNAL_API_KEY", present: railwayConfigured, required: true },
+    { name: "RAILWAY_EXTERNAL_BASE_URL", present: Boolean(process.env.RAILWAY_EXTERNAL_BASE_URL), required: false },
+  ];
 
   const envChecks: Array<{ name: string; present: boolean; required: boolean }> = [
     { name: "SKANKA5_API_KEY", present: Boolean(process.env.SKANKA5_API_KEY), required: true },
@@ -226,6 +235,28 @@ export default async function SupplierConsolePage() {
         </AdminAlert>
       </AdminSection>
 
+      <AdminSection
+        title="Railway API (external supplier)"
+        description="Connect to backend-production Railway — products, orders, and status polling (no webhook)."
+        icon={Cable}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          <AdminStatusBadge ok={railwayConfigured} label="API key" />
+        </div>
+        <AdminAlert
+          tone={railwayConfigured ? "success" : "warning"}
+          title={railwayConfigured ? "Railway API key detected" : "RAILWAY_EXTERNAL_API_KEY not set"}
+        >
+          <AdminEnvCheckList items={railwayEnvChecks} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Base URL defaults to{" "}
+            <code>https://backend-production-1d8b.up.railway.app/api/external</code>. Override with{" "}
+            <code>RAILWAY_EXTERNAL_BASE_URL</code>. Map products with{" "}
+            <code>RAILWAY_PRODUCT_ID_MTN_1GB</code> etc. if auto-match fails.
+          </p>
+        </AdminAlert>
+      </AdminSection>
+
       {unsignedMode && (
         <AdminAlert tone="danger" title="Unsigned webhook mode is ON">
           <code>SKANKA5_ALLOW_UNSIGNED_WEBHOOKS=1</code> is set. Webhooks are accepted without verifying{" "}
@@ -288,6 +319,17 @@ export default async function SupplierConsolePage() {
           <div className="mt-3 border-t border-slate-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Success Biz Hub</p>
             <SupplierPingButton disabled={!sbhConfigured} supplier="successbizhub" />
+          </div>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">Railway API</p>
+            <SupplierPingButton
+              disabled={!railwayConfigured}
+              supplier="railwayexternal"
+              label="Ping /products"
+            />
+            <div className="mt-2">
+              <SupplierPollRailwayButton disabled={!railwayConfigured} />
+            </div>
           </div>
           <dl className="admin-kv-list mt-3 border-t border-slate-100 pt-3">
             <div className="admin-kv-row">

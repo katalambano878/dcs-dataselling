@@ -19,7 +19,7 @@ export interface MomoDirectConfig {
 }
 
 /** Automated or manual supplier module for a network. */
-export type NetworkSupplierId = "manual" | "skanka5" | "successbizhub";
+export type NetworkSupplierId = "manual" | "skanka5" | "successbizhub" | "railwayexternal";
 
 export interface SupplierRoutingConfig {
   /** Per-network admin override. When omitted, follows SUPPLIER_FOR_<NETWORK> env. */
@@ -140,7 +140,12 @@ function normalizeChannelUrl(value: unknown, fallback: string): string {
   }
 }
 
-const VALID_SUPPLIER_IDS = new Set<NetworkSupplierId>(["manual", "skanka5", "successbizhub"]);
+const VALID_SUPPLIER_IDS = new Set<NetworkSupplierId>([
+  "manual",
+  "skanka5",
+  "successbizhub",
+  "railwayexternal",
+]);
 
 function normalizeNetworkSupplierId(value: unknown): NetworkSupplierId | undefined {
   return typeof value === "string" && VALID_SUPPLIER_IDS.has(value as NetworkSupplierId)

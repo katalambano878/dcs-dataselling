@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 const NETWORK_SUPPLIER_OPTIONS: Array<{ id: NetworkSupplierId; label: string }> = [
   { id: "manual", label: "Manual" },
   { id: "skanka5", label: "Skanka5" },
-  { id: "successbizhub", label: "Success Biz Hub" },
+  { id: "successbizhub", label: "DataCoreGH" },
+  { id: "railwayexternal", label: "Railway API" },
 ];
 
 const NETWORK_ROWS: Array<{ network: SupplierNetworkSlug; label: string }> = [
