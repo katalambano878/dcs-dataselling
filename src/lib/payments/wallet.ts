@@ -192,7 +192,7 @@ export async function markWalletTopupPaid(
 export async function verifyWalletTopupWithPaystack(
   reference: string,
 ): Promise<WalletTopupCompletion | null> {
-  if (!reference || !reference.startsWith("DCS-WALLET")) return null;
+  if (!reference) return null;
   const secret = process.env.PAYSTACK_SECRET_KEY;
   if (!secret) return null;
 
@@ -208,6 +208,51 @@ export async function verifyWalletTopupWithPaystack(
   if (!payload.status || payload.data?.status !== "success") return null;
 
   return markWalletTopupPaid(reference, reference);
+}
+
+/**
+ * Backstop for missed Paystack webhooks (e.g. MoMo charges that never redirect
+ * the customer back to the callback URL). Scans recent pending top-ups, verifies
+ * each against Paystack, and credits the ones that actually succeeded.
+ *
+ * Idempotent: markWalletTopupPaid only acts on `pending` rows.
+ */
+export async function reconcilePendingWalletTopups(opts?: {
+  lookbackDays?: number;
+  limit?: number;
+}): Promise<{ checked: number; credited: number; creditedReferences: string[] }> {
+  const result = { checked: 0, credited: 0, creditedReferences: [] as string[] };
+  if (!hasSupabaseConfig() || !process.env.PAYSTACK_SECRET_KEY) return result;
+
+  const lookbackDays = opts?.lookbackDays ?? 7;
+  const limit = opts?.limit ?? 100;
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const service = createServiceClient();
+  const { data } = await service
+    .from("wallet_topups")
+    .select("reference")
+    .eq("status", "pending")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const rows = (data ?? []) as { reference: string }[];
+
+  for (const row of rows) {
+    result.checked += 1;
+    try {
+      const completion = await verifyWalletTopupWithPaystack(row.reference);
+      if (completion) {
+        result.credited += 1;
+        result.creditedReferences.push(row.reference);
+      }
+    } catch {
+      // Skip transient verify failures; the next run retries.
+    }
+  }
+
+  return result;
 }
 
 export async function creditVendorWallet(
