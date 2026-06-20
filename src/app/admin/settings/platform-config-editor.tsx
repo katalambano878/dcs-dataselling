@@ -90,6 +90,56 @@ export function PlatformConfigEditor({ initialConfig }: Props) {
 
   return (
     <div className="space-y-5">
+      <div
+        className={`rounded-xl border p-4 ${
+          config.maintenanceMode
+            ? "border-amber-500/40 bg-amber-500/10"
+            : "border-white/10 bg-white/5"
+        }`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-white">Site maintenance mode</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/60">
+              When on, visitors and agents see a maintenance page. Admin panel, login, and
+              payment webhooks keep working.
+            </p>
+          </div>
+          <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 text-xs font-bold text-white">
+            <input
+              type="checkbox"
+              checked={config.maintenanceMode}
+              onChange={(e) =>
+                setConfig((c) => ({
+                  ...c,
+                  maintenanceMode: e.target.checked,
+                }))
+              }
+              className="h-4 w-4 rounded border-white/20"
+            />
+            {config.maintenanceMode ? "ON — site hidden" : "Off — site live"}
+          </label>
+        </div>
+        <Field
+          label="Maintenance message (optional)"
+          hint="Shown on the maintenance page. Leave blank for the default message."
+        >
+          <textarea
+            rows={2}
+            maxLength={500}
+            value={config.maintenanceMessage}
+            onChange={(e) =>
+              setConfig((c) => ({
+                ...c,
+                maintenanceMessage: e.target.value,
+              }))
+            }
+            placeholder="We're upgrading the platform. Back in a few minutes."
+            className="admin-form-field-input min-h-[4.5rem] resize-y"
+          />
+        </Field>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           label="Vendor store setup fee (GHS)"

@@ -55,6 +55,10 @@ export interface PlatformConfig {
    * the processing cost (e.g. 2 = agent pays amount + 2%). 0 disables the fee.
    */
   paystackFeePercent: number;
+  /** When true, public pages and vendor dashboard show a maintenance screen. */
+  maintenanceMode: boolean;
+  /** Optional message shown on the maintenance page. */
+  maintenanceMessage: string;
   /** SMS-forwarder-based direct MoMo payment settings. */
   momoDirect: MomoDirectConfig;
   /** Per-network supplier overrides (admin-controlled without env redeploy). */
@@ -72,6 +76,8 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   recipientOrderCooldownMinutes: 3,
   referralRewardGhs: 10,
   paystackFeePercent: 0,
+  maintenanceMode: false,
+  maintenanceMessage: "",
   momoDirect: {
     enabled: false,
     merchantNumbers: { mtn: "", telecel: "", at: "" },
@@ -104,6 +110,12 @@ export function normalizePlatformConfig(input: unknown): PlatformConfig {
     ),
     referralRewardGhs: clampNum(raw.referralRewardGhs, base.referralRewardGhs, 1, 10000),
     paystackFeePercent: clampNum(raw.paystackFeePercent, base.paystackFeePercent, 0, 10),
+    maintenanceMode:
+      typeof raw.maintenanceMode === "boolean" ? raw.maintenanceMode : base.maintenanceMode,
+    maintenanceMessage:
+      typeof raw.maintenanceMessage === "string"
+        ? raw.maintenanceMessage.trim().slice(0, 500)
+        : base.maintenanceMessage,
     momoDirect: normalizeMomoDirect(raw.momoDirect, base.momoDirect),
     supplierRouting: normalizeSupplierRouting(raw.supplierRouting, base.supplierRouting),
     contact: normalizeContact(raw.contact, base.contact),

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Cable,
+  Construction,
   Database,
   DollarSign,
   MessageSquare,
@@ -48,6 +49,22 @@ export default async function AdminSettingsPage() {
         description="Brand identity, integration health, and admin shortcuts."
         meta={`${[supabaseOk, paystackOk, arkeselOk, skanka5Ok].filter(Boolean).length}/4 core integrations connected`}
       />
+
+      {platformConfig.maintenanceMode ? (
+        <AdminSection
+          title="Maintenance mode is ON"
+          description="The public site and vendor dashboard are hidden. Turn it off below when you're ready to go live again."
+          icon={Construction}
+        >
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Visitors are redirected to{" "}
+            <a href="/maintenance" className="font-semibold underline" target="_blank" rel="noreferrer">
+              /maintenance
+            </a>
+            . Admin and webhooks remain active.
+          </p>
+        </AdminSection>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <AdminSection title="Brand" description="Public-facing platform identity." icon={Settings}>

@@ -22,6 +22,8 @@ const schema = z.object({
   recipientOrderCooldownMinutes: z.number().min(1).max(3).optional(),
   referralRewardGhs: z.number().min(1).max(10000).optional(),
   paystackFeePercent: z.number().min(0).max(10).optional(),
+  maintenanceMode: z.boolean().optional(),
+  maintenanceMessage: z.string().max(500).optional(),
   momoDirect: momoDirectSchema.optional(),
   supplierRouting: z
     .object({
