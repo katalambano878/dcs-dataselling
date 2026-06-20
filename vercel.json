@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/poll-railway",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/reconcile-wallet-topups",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
