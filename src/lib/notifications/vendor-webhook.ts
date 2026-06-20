@@ -31,6 +31,19 @@ export async function deliverVendorWebhook(params: DeliverParams): Promise<void>
   if (!hasSupabaseConfig()) return;
 
   const service = createServiceClient();
+
+  // Skip if we already delivered this event for this order reference successfully.
+  const { data: prior } = await service
+    .from("vendor_webhook_deliveries")
+    .select("id")
+    .eq("vendor_id", params.vendorId)
+    .eq("event", params.event)
+    .eq("reference", params.reference)
+    .eq("ok", true)
+    .limit(1)
+    .maybeSingle();
+  if (prior) return;
+
   const { data: vendor } = await service
     .from("vendors")
     .select("api_webhook_url, api_webhook_secret, api_webhook_enabled")

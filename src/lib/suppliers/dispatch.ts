@@ -7,6 +7,7 @@ import {
   notifyVendorWholesaleFulfilled,
   notifyWholesaleItemDelivered,
 } from "@/lib/notifications/wholesale-sms";
+import { refundWholesaleOrderToWallet } from "@/lib/payments/wallet";
 import {
   tryCreditReferralForCustomerOrder,
   tryCreditReferralForWholesaleItem,
@@ -316,6 +317,15 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
         : null,
     })
     .eq("id", row.id);
+
+  if (parentStatus === "failed") {
+    await service
+      .from("wholesale_order_items")
+      .update({ status: "failed" })
+      .eq("wholesale_order_id", row.id)
+      .neq("status", "fulfilled");
+    await refundWholesaleOrderToWallet(row.id);
+  }
 }
 
 /** Resolve fulfilment of items returned by a supplier webhook batch. */
@@ -373,28 +383,9 @@ export async function resolveSupplierItemsProcessed(args: {
         ),
       ),
     );
+    const webhookFired = new Set<string>();
     for (const parentId of parentIds) {
-      const { data: itemStatuses } = await service
-        .from("wholesale_order_items")
-        .select("status")
-        .eq("wholesale_order_id", parentId);
-      const rows = (itemStatuses ?? []) as { status: string }[];
-      const allDone = rows.length > 0 && rows.every((r) => r.status === "fulfilled");
-      const anyFailed = rows.some((r) => r.status === "failed");
-      if (allDone) {
-        await service
-          .from("wholesale_orders")
-          .update({ status: "fulfilled", fulfilled_at: now })
-          .eq("id", parentId);
-        await fireVendorWebhookForWholesaleOrder(parentId, "order.fulfilled");
-        after(() => notifyVendorWholesaleFulfilled(parentId));
-      } else if (anyFailed && rows.every((r) => ["fulfilled", "failed"].includes(r.status))) {
-        await service
-          .from("wholesale_orders")
-          .update({ status: "failed" })
-          .eq("id", parentId);
-        await fireVendorWebhookForWholesaleOrder(parentId, "order.failed");
-      }
+      await completeWholesaleParentIfReady(parentId, now, webhookFired);
     }
 
     if (isFulfilled) {
@@ -424,12 +415,15 @@ export async function resolveSupplierDeliveryByReference(args: {
   const service = createServiceClient();
   const now = new Date().toISOString();
   const isFulfilled = args.outcome === "fulfilled";
-  const refs = [args.supplierReference, args.supplierOrderId].filter(
-    (v): v is string => typeof v === "string" && v.length > 0,
-  );
+  const refs = [...new Set(
+    [args.supplierReference, args.supplierOrderId].filter(
+      (v): v is string => typeof v === "string" && v.length > 0,
+    ),
+  )];
 
   const customerIds = new Set<string>();
   const wholesaleItemIds = new Set<string>();
+  const webhookFired = new Set<string>();
 
   for (const ref of refs) {
     const customerPatch = {
@@ -469,27 +463,7 @@ export async function resolveSupplierDeliveryByReference(args: {
       ),
     );
     for (const parentId of parentIds) {
-      const { data: itemStatuses } = await service
-        .from("wholesale_order_items")
-        .select("status")
-        .eq("wholesale_order_id", parentId);
-      const rows = (itemStatuses ?? []) as { status: string }[];
-      const allDone = rows.length > 0 && rows.every((r) => r.status === "fulfilled");
-      const anyFailed = rows.some((r) => r.status === "failed");
-      if (allDone) {
-        await service
-          .from("wholesale_orders")
-          .update({ status: "fulfilled", fulfilled_at: now })
-          .eq("id", parentId);
-        await fireVendorWebhookForWholesaleOrder(parentId, "order.fulfilled");
-        after(() => notifyVendorWholesaleFulfilled(parentId));
-      } else if (anyFailed && rows.every((r) => ["fulfilled", "failed"].includes(r.status))) {
-        await service
-          .from("wholesale_orders")
-          .update({ status: "failed" })
-          .eq("id", parentId);
-        await fireVendorWebhookForWholesaleOrder(parentId, "order.failed");
-      }
+      await completeWholesaleParentIfReady(parentId, now, webhookFired);
     }
 
     const { data: wholesaleByRef } = await service
@@ -502,14 +476,8 @@ export async function resolveSupplierDeliveryByReference(args: {
       })
       .ilike("supplier_reference", `%${ref}%`)
       .select("id");
-    if ((wholesaleByRef as unknown as { id: string }[] | null)?.length) {
-      for (const o of wholesaleByRef as { id: string }[]) {
-        await fireVendorWebhookForWholesaleOrder(
-          o.id,
-          isFulfilled ? "order.fulfilled" : "order.failed",
-        );
-        if (isFulfilled) after(() => notifyVendorWholesaleFulfilled(o.id));
-      }
+    for (const o of (wholesaleByRef as { id: string }[] | null) ?? []) {
+      await completeWholesaleParentIfReady(o.id, now, webhookFired);
     }
   }
 
@@ -525,6 +493,57 @@ export async function resolveSupplierDeliveryByReference(args: {
     customerOrdersFulfilled: customerIds.size,
     wholesaleItemsFulfilled: wholesaleItemIds.size,
   };
+}
+
+function webhookDedupeKey(orderId: string, event: "order.fulfilled" | "order.failed") {
+  return `${orderId}:${event}`;
+}
+
+/** Mark parent wholesale order fulfilled/failed once; fire webhook + SMS + refund at most once each. */
+async function completeWholesaleParentIfReady(
+  parentId: string,
+  now: string,
+  webhookFired: Set<string>,
+): Promise<void> {
+  if (!hasSupabaseConfig()) return;
+  const service = createServiceClient();
+
+  const { data: itemStatuses } = await service
+    .from("wholesale_order_items")
+    .select("status")
+    .eq("wholesale_order_id", parentId);
+  const rows = (itemStatuses ?? []) as { status: string }[];
+  if (rows.length === 0) return;
+
+  const allDone = rows.every((r) => r.status === "fulfilled");
+  const anyFailed = rows.some((r) => r.status === "failed");
+  const allTerminal = rows.every((r) => ["fulfilled", "failed"].includes(r.status));
+
+  if (allDone) {
+    await service
+      .from("wholesale_orders")
+      .update({ status: "fulfilled", fulfilled_at: now })
+      .eq("id", parentId);
+
+    const key = webhookDedupeKey(parentId, "order.fulfilled");
+    if (!webhookFired.has(key)) {
+      webhookFired.add(key);
+      await fireVendorWebhookForWholesaleOrder(parentId, "order.fulfilled");
+      after(() => notifyVendorWholesaleFulfilled(parentId));
+    }
+    return;
+  }
+
+  if (anyFailed && allTerminal) {
+    await service.from("wholesale_orders").update({ status: "failed" }).eq("id", parentId);
+
+    const key = webhookDedupeKey(parentId, "order.failed");
+    if (!webhookFired.has(key)) {
+      webhookFired.add(key);
+      await fireVendorWebhookForWholesaleOrder(parentId, "order.failed");
+    }
+    await refundWholesaleOrderToWallet(parentId);
+  }
 }
 
 async function fireVendorWebhookForWholesaleOrder(

@@ -265,6 +265,17 @@ export async function creditVendorWallet(
   const service = createServiceClient();
   await getOrCreateVendorWallet(vendorId);
 
+  if (reference && (entryType === "topup" || entryType === "refund")) {
+    const { data: existing } = await service
+      .from("wallet_ledger")
+      .select("id")
+      .eq("vendor_id", vendorId)
+      .eq("reference", reference)
+      .eq("entry_type", entryType)
+      .maybeSingle();
+    if (existing) return;
+  }
+
   const { data: wallet } = await service
     .from("wallets")
     .select("balance")
@@ -326,5 +337,76 @@ export async function debitVendorWallet(
     balance_after: next,
   });
 
+  return true;
+}
+
+/**
+ * Refund a failed wallet-paid wholesale order back to the vendor's wallet.
+ * Idempotent via ledger reference `REFUND-{orderReference}`.
+ * Partial failures refund only failed line totals.
+ */
+export async function refundWholesaleOrderToWallet(wholesaleOrderId: string): Promise<boolean> {
+  if (!hasSupabaseConfig()) return false;
+  const service = createServiceClient();
+
+  const { data: orderRow } = await service
+    .from("wholesale_orders")
+    .select("id, reference, vendor_id, status, total_amount")
+    .eq("id", wholesaleOrderId)
+    .maybeSingle();
+
+  const order = orderRow as {
+    id: string;
+    reference: string;
+    vendor_id: string;
+    status: string;
+    total_amount: number | string;
+  } | null;
+
+  if (!order || order.status !== "failed") return false;
+
+  const refundRef = `REFUND-${order.reference}`;
+
+  const { data: existingRefund } = await service
+    .from("wallet_ledger")
+    .select("id")
+    .eq("vendor_id", order.vendor_id)
+    .eq("reference", refundRef)
+    .eq("entry_type", "refund")
+    .maybeSingle();
+  if (existingRefund) return false;
+
+  const { data: debit } = await service
+    .from("wallet_ledger")
+    .select("id")
+    .eq("vendor_id", order.vendor_id)
+    .eq("reference", order.reference)
+    .eq("entry_type", "order_debit")
+    .maybeSingle();
+  if (!debit) return false;
+
+  const { data: items } = await service
+    .from("wholesale_order_items")
+    .select("status, line_total")
+    .eq("wholesale_order_id", wholesaleOrderId);
+
+  const rows = (items ?? []) as { status: string; line_total: number | string }[];
+  const failedLines = rows.filter((r) => r.status === "failed");
+  let refundAmount: number;
+  if (failedLines.length > 0) {
+    refundAmount = +failedLines.reduce((s, r) => s + Number(r.line_total), 0).toFixed(2);
+  } else {
+    refundAmount = Number(order.total_amount);
+  }
+
+  if (refundAmount <= 0) return false;
+
+  await creditVendorWallet(
+    order.vendor_id,
+    refundAmount,
+    "refund",
+    refundRef,
+    `Refund for failed order ${order.reference}`,
+  );
   return true;
 }

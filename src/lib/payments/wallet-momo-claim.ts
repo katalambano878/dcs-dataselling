@@ -85,6 +85,16 @@ export async function finalizeMomoWalletTopup(
   const t = topup as PendingMomoTopup & { payment_method: string } | null;
   if (!t || t.status !== "pending" || t.payment_method !== "momo_direct") return null;
 
+  const txn = transactionId.trim().toUpperCase();
+  const { data: dupTxn } = await service
+    .from("wallet_topups")
+    .select("id")
+    .eq("payment_reference", txn)
+    .eq("status", "paid")
+    .neq("id", t.id)
+    .maybeSingle();
+  if (dupTxn) return null;
+
   const declared = Number(t.amount);
   const creditResolution = resolveCreditAmount(declared, smsAmount ?? null);
   if (creditResolution === "underpaid") return null;
@@ -242,6 +252,31 @@ export async function claimMomoWalletTopup(params: {
 
   const txnId = params.transactionId.trim().toUpperCase();
   const service = createServiceClient();
+
+  const { data: paidByTxn } = await service
+    .from("wallet_topups")
+    .select("vendor_id, reference, amount, status")
+    .eq("payment_reference", txnId)
+    .eq("status", "paid")
+    .maybeSingle();
+
+  const paidTopup = paidByTxn as {
+    vendor_id: string;
+    reference: string;
+    amount: number | string;
+    status: string;
+  } | null;
+
+  if (paidTopup) {
+    if (paidTopup.vendor_id === params.vendorId) {
+      return {
+        status: "already_processed",
+        amount: Number(paidTopup.amount),
+        reference: paidTopup.reference,
+      };
+    }
+    return { status: "already_processed" };
+  }
 
   let topup = await findPendingTopupForVendor(params.vendorId, params.reference);
 

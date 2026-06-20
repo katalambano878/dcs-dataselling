@@ -1,6 +1,21 @@
 import "server-only";
 import { SITE } from "@/lib/constants";
 import { sendArkeselSms, type SmsLogContext, type SmsResult } from "@/lib/notifications/arkesel";
+import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+
+async function smsAlreadySent(template: string, reference: string): Promise<boolean> {
+  if (!hasSupabaseConfig()) return true;
+  const service = createServiceClient();
+  const { data } = await service
+    .from("sms_logs")
+    .select("id")
+    .eq("template", template)
+    .eq("status", "sent")
+    .eq("context->>reference", reference)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}
 
 export async function smsOrderPaymentReceived(params: {
   phone: string;
@@ -66,6 +81,9 @@ export async function smsWalletTopup(params: {
   reference: string;
   context?: Record<string, unknown>;
 }): Promise<SmsResult> {
+  if (await smsAlreadySent("wallet_topup", params.reference)) {
+    return { ok: false, skipped: true, reason: "already_sent" };
+  }
   const message = `${SITE.name}: Wallet topped up GHS ${params.amount.toFixed(2)}. Ref ${params.reference}.`;
   const ctx: SmsLogContext = {
     template: "wallet_topup",
