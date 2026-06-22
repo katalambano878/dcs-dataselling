@@ -365,7 +365,7 @@ export async function refundWholesaleOrderToWallet(wholesaleOrderId: string): Pr
 
   if (!order || order.status !== "failed") return false;
 
-  const refundRef = `REFUND-${order.reference}`;
+  const refundRef = wholesaleOrderRefundReference(order.reference);
 
   const { data: existingRefund } = await service
     .from("wallet_ledger")
@@ -409,4 +409,121 @@ export async function refundWholesaleOrderToWallet(wholesaleOrderId: string): Pr
     `Refund for failed order ${order.reference}`,
   );
   return true;
+}
+
+export function wholesaleItemRefundReference(itemId: string) {
+  return `REFUND-ITEM-${itemId}`;
+}
+
+export function wholesaleOrderRefundReference(orderReference: string) {
+  return `REFUND-${orderReference}`;
+}
+
+export type WalletRefundResult =
+  | { ok: true; amount: number; reference: string; vendorId: string; notifyPhone: string | null }
+  | { ok: false; error: string; alreadyRefunded?: boolean };
+
+/** Admin/manual refund for a single failed wholesale line debited from the agent wallet. */
+export async function refundWholesaleItemToWallet(itemId: string): Promise<WalletRefundResult> {
+  if (!hasSupabaseConfig()) return { ok: false, error: "Database not configured" };
+
+  const service = createServiceClient();
+  const { data: raw } = await service
+    .from("wholesale_order_items")
+    .select(
+      `
+      id, status, line_total, recipient_phone,
+      wholesale_orders!inner ( id, reference, vendor_id, payment_provider )
+    `,
+    )
+    .eq("id", itemId)
+    .maybeSingle();
+
+  const row = raw as {
+    id: string;
+    status: string;
+    line_total: number | string;
+    recipient_phone: string;
+    wholesale_orders:
+      | {
+          id: string;
+          reference: string;
+          vendor_id: string;
+          payment_provider: string | null;
+        }
+      | Array<{
+          id: string;
+          reference: string;
+          vendor_id: string;
+          payment_provider: string | null;
+        }>;
+  } | null;
+
+  if (!row) return { ok: false, error: "Order line not found" };
+
+  const order = Array.isArray(row.wholesale_orders) ? row.wholesale_orders[0] : row.wholesale_orders;
+  if (!order) return { ok: false, error: "Parent order not found" };
+
+  if (row.status !== "failed") {
+    return { ok: false, error: "Only failed lines can be refunded" };
+  }
+
+  const refundRef = wholesaleItemRefundReference(itemId);
+  const orderRefundRef = wholesaleOrderRefundReference(order.reference);
+
+  const { data: existingItemRefund } = await service
+    .from("wallet_ledger")
+    .select("id")
+    .eq("vendor_id", order.vendor_id)
+    .eq("reference", refundRef)
+    .eq("entry_type", "refund")
+    .maybeSingle();
+  if (existingItemRefund) {
+    return { ok: false, error: "This line was already refunded", alreadyRefunded: true };
+  }
+
+  const { data: existingOrderRefund } = await service
+    .from("wallet_ledger")
+    .select("id")
+    .eq("vendor_id", order.vendor_id)
+    .eq("reference", orderRefundRef)
+    .eq("entry_type", "refund")
+    .maybeSingle();
+  if (existingOrderRefund) {
+    return { ok: false, error: "Order was already refunded in full", alreadyRefunded: true };
+  }
+
+  const { data: debit } = await service
+    .from("wallet_ledger")
+    .select("id")
+    .eq("vendor_id", order.vendor_id)
+    .eq("reference", order.reference)
+    .eq("entry_type", "order_debit")
+    .maybeSingle();
+  if (!debit) {
+    return { ok: false, error: "No wallet debit found for this order" };
+  }
+
+  const amount = Number(row.line_total);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Invalid refund amount" };
+  }
+
+  await creditVendorWallet(
+    order.vendor_id,
+    amount,
+    "refund",
+    refundRef,
+    `Refund for failed line ${order.reference} → ${row.recipient_phone}`,
+  );
+
+  const notifyPhone = await getVendorNotifyPhone(order.vendor_id);
+
+  return {
+    ok: true,
+    amount,
+    reference: order.reference,
+    vendorId: order.vendor_id,
+    notifyPhone,
+  };
 }

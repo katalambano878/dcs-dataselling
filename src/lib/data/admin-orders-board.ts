@@ -2,6 +2,7 @@ import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { formatDataAmount } from "@/lib/format";
 import { fetchStorefrontOrderBundlesBatch } from "@/lib/orders/storefront-listing";
+import { wholesaleItemRefundReference, wholesaleOrderRefundReference } from "@/lib/payments/wallet";
 import type { OrderStatus } from "@/lib/constants";
 
 export type AdminOrderLineKind = "wholesale_item" | "customer";
@@ -29,6 +30,7 @@ export interface AdminOrderBoardRow {
   apiSource: string | null;
   apiReference: string | null;
   wholesaleOrderId?: string;
+  walletRefunded?: boolean;
 }
 
 export type AdminOrdersFilterStatus =
@@ -295,6 +297,29 @@ export async function fetchAdminOrderBoardRows(
       }
 
       rows.push(line);
+    }
+  }
+
+  const wholesaleRows = rows.filter((r) => r.kind === "wholesale_item");
+  if (wholesaleRows.length > 0) {
+    const refundRefs = wholesaleRows.flatMap((r) => [
+      wholesaleItemRefundReference(r.id),
+      wholesaleOrderRefundReference(r.orderReference),
+    ]);
+    const { data: refundLedger } = await service
+      .from("wallet_ledger")
+      .select("reference")
+      .eq("entry_type", "refund")
+      .in("reference", refundRefs);
+
+    const refundedRefs = new Set(
+      ((refundLedger ?? []) as { reference: string }[]).map((r) => r.reference),
+    );
+
+    for (const row of wholesaleRows) {
+      row.walletRefunded =
+        refundedRefs.has(wholesaleItemRefundReference(row.id)) ||
+        refundedRefs.has(wholesaleOrderRefundReference(row.orderReference));
     }
   }
 

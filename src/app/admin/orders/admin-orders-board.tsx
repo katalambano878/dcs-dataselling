@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Search,
   Square,
+  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -216,6 +217,53 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
   async function rowAction(row: AdminOrderBoardRow, status: string) {
     setActionOpen(null);
     await runBulkStatus(status, [row]);
+  }
+
+  function canRefundRow(row: AdminOrderBoardRow) {
+    return (
+      row.kind === "wholesale_item" &&
+      row.orderStatus === "failed" &&
+      !row.walletRefunded &&
+      (row.paymentMethod === "wallet" || row.paymentMethod === "api")
+    );
+  }
+
+  async function refundRow(row: AdminOrderBoardRow) {
+    if (!canRefundRow(row)) return;
+    if (
+      !window.confirm(
+        `Refund ${formatGHS(row.price)} to ${row.agentName}'s wallet for order ${row.orderReference}?`,
+      )
+    ) {
+      return;
+    }
+
+    setActionOpen(null);
+    setPending(true);
+    try {
+      const res = await fetch("/api/admin/orders/refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "wholesale_item", id: row.id }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        amount?: number;
+        notified?: boolean;
+      };
+      if (!res.ok) throw new Error(data.error ?? "Refund failed");
+
+      toast.success(
+        data.notified
+          ? `Refunded ${formatGHS(data.amount ?? row.price)} — agent notified by SMS`
+          : `Refunded ${formatGHS(data.amount ?? row.price)} to wallet`,
+      );
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Refund failed");
+    } finally {
+      setPending(false);
+    }
   }
 
   const bulkOptions =
@@ -447,6 +495,23 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
                             {o.label}
                           </button>
                         ))}
+                        {canRefundRow(row) ? (
+                          <>
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                              disabled={pending}
+                              onClick={() => void refundRow(row)}
+                            >
+                              <Undo2 className="h-3.5 w-3.5" />
+                              Refund to wallet
+                            </button>
+                          </>
+                        ) : null}
+                        {row.walletRefunded ? (
+                          <p className="px-3 py-1.5 text-xs text-muted-foreground">Already refunded</p>
+                        ) : null}
                       </div>
                     )}
                   </AdminTd>
