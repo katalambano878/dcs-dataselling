@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Package, Plus, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Package, PackageX, Plus, Save, Trash2 } from "lucide-react";
 import { WishlistToggle } from "@/components/wishlist/wishlist-toggle";
 import { toast } from "sonner";
 import {
@@ -63,24 +63,24 @@ function tierLadderWarning(prices: WholesalePriceMatrix): string | null {
   return null;
 }
 
-export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
+export function WholesaleAdmin({ bundles, wishlistIds = [] }: Props) {
   const router = useRouter();
-  const [rows] = useState(initial);
   const [pending, setPending] = useState<string | null>(null);
+  const [stockPending, setStockPending] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [networkFilter, setNetworkFilter] = useState<NetworkFilter>("all");
 
   const filteredRows = useMemo(() => {
-    if (networkFilter === "all") return rows;
-    return rows.filter((row) => row.network === networkFilter);
-  }, [rows, networkFilter]);
+    if (networkFilter === "all") return bundles;
+    return bundles.filter((row) => row.network === networkFilter);
+  }, [bundles, networkFilter]);
 
   const networkCounts = useMemo(() => {
     const counts: Record<NetworkId, number> = { mtn: 0, telecel: 0, at: 0 };
-    for (const row of rows) counts[row.network]++;
+    for (const row of bundles) counts[row.network]++;
     return counts;
-  }, [rows]);
+  }, [bundles]);
   const [newBundle, setNewBundle] = useState({
     network: "mtn" as "mtn" | "telecel" | "at",
     name: "",
@@ -121,6 +121,35 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
       setPending(null);
+    }
+  }
+
+  async function toggleStock(row: AdminWholesaleRow) {
+    const nextActive = !row.active;
+    const label = `${row.name} (${formatDataAmount(row.dataMb)})`;
+    if (
+      !nextActive &&
+      !window.confirm(
+        `Mark "${label}" out of stock? Agents will not be able to order it until you turn it back on.`,
+      )
+    ) {
+      return;
+    }
+
+    setStockPending(row.id);
+    try {
+      const res = await fetch(`/api/admin/wholesale/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: nextActive }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success(nextActive ? "Package back in stock" : "Package marked out of stock");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setStockPending(null);
     }
   }
 
@@ -290,7 +319,7 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {bundles.length === 0 ? (
         <AdminEmptyState
           icon={Package}
           title="No wholesale bundles"
@@ -307,7 +336,7 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
               onClick={() => setNetworkFilter("all")}
             >
               All
-              <span className="pricing-matrix-filter-count">{rows.length}</span>
+              <span className="pricing-matrix-filter-count">{bundles.length}</span>
             </button>
             {NETWORKS.map((network) => (
               <button
@@ -349,10 +378,12 @@ export function WholesaleAdmin({ bundles: initial, wishlistIds = [] }: Props) {
               <AdminTableBody>
                 {filteredRows.map((row) => (
                   <WholesaleRowEditor
-                    key={row.id}
+                    key={`${row.id}-${row.active ? "on" : "off"}`}
                     row={row}
                     saving={pending === row.id}
+                    stockPending={stockPending === row.id}
                     onSave={saveRow}
+                    onToggleStock={toggleStock}
                     onDelete={deleteRow}
                     deleting={deletingId === row.id}
                     wishlistSaved={wishlistIds.includes(row.id)}
@@ -439,15 +470,19 @@ function PriceInput({
 function WholesaleRowEditor({
   row,
   saving,
+  stockPending = false,
   deleting = false,
   onSave,
+  onToggleStock,
   onDelete,
   wishlistSaved = false,
 }: {
   row: AdminWholesaleRow;
   saving: boolean;
+  stockPending?: boolean;
   deleting?: boolean;
   onSave: (row: AdminWholesaleRow, draft: Partial<AdminWholesaleRow> & { prices?: WholesalePriceMatrix }) => void;
+  onToggleStock: (row: AdminWholesaleRow) => void;
   onDelete: (row: AdminWholesaleRow) => void;
   wishlistSaved?: boolean;
 }) {
@@ -475,7 +510,13 @@ function WholesaleRowEditor({
     prices.expressAgentPrice < prices.costPrice || prices.expressAgentPrice > prices.agentPrice;
 
   return (
-    <tr className={cn("admin-table-tr", dirty && "pricing-matrix-row-dirty")}>
+    <tr
+      className={cn(
+        "admin-table-tr",
+        dirty && "pricing-matrix-row-dirty",
+        !row.active && "opacity-60",
+      )}
+    >
       <td className="admin-table-td">
         <div className="flex items-center gap-2">
           <NetworkBadge network={row.network} size="xs" />
@@ -548,15 +589,21 @@ function WholesaleRowEditor({
       </td>
       <td className="admin-table-td">
         <div className="pricing-matrix-status">
-          <label className={cn("pricing-matrix-status-chip", active && "is-on")}>
-            <input
-              type="checkbox"
-              className="sr-only"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-            />
-            Active
-          </label>
+          {!row.active ? (
+            <span className="pricing-matrix-status-chip bg-rose-50 text-rose-700 ring-1 ring-rose-200">
+              Out of stock
+            </span>
+          ) : (
+            <label className={cn("pricing-matrix-status-chip", active && "is-on")}>
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+              Active
+            </label>
+          )}
           <label className={cn("pricing-matrix-status-chip", popular && "is-on is-popular")}>
             <input
               type="checkbox"
@@ -570,6 +617,19 @@ function WholesaleRowEditor({
       </td>
       <td className="admin-table-td">
         <div className="pricing-matrix-actions">
+          <Button
+            size="sm"
+            variant={row.active ? "secondary" : "default"}
+            disabled={saving || deleting || stockPending}
+            onClick={() => void onToggleStock(row)}
+            className={cn(
+              "shrink-0",
+              row.active && "text-rose-700 hover:bg-rose-50 hover:text-rose-800",
+            )}
+          >
+            <PackageX className="h-3.5 w-3.5" />
+            {stockPending ? "…" : row.active ? "Out of stock" : "Back in stock"}
+          </Button>
           <WishlistToggle
             bundleId={row.id}
             apiBase="/api/admin/wishlist"
@@ -579,7 +639,7 @@ function WholesaleRowEditor({
           <Button
             size="sm"
             className="pricing-matrix-save-btn"
-            disabled={!dirty || saving || deleting}
+            disabled={!dirty || saving || deleting || stockPending}
             onClick={() =>
               onSave(row, {
                 prices,

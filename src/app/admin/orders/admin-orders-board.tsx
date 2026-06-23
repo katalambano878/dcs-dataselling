@@ -8,6 +8,7 @@ import {
   ClipboardPaste,
   Download,
   MoreHorizontal,
+  PackageX,
   RefreshCw,
   Search,
   Square,
@@ -266,6 +267,41 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
     }
   }
 
+  async function toggleBundleStock(row: AdminOrderBoardRow) {
+    if (!row.wholesaleBundleId || row.bundleActive == null) return;
+
+    const nextActive = !row.bundleActive;
+    if (
+      !nextActive &&
+      !window.confirm(
+        `Mark "${row.packageName}" out of stock? Agents will not be able to order it until you turn it back on.`,
+      )
+    ) {
+      return;
+    }
+
+    setActionOpen(null);
+    setPending(true);
+    try {
+      const res = await fetch(`/api/admin/wholesale/${row.wholesaleBundleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: nextActive }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to update stock");
+
+      toast.success(
+        nextActive ? `${row.packageName} back in stock` : `${row.packageName} marked out of stock`,
+      );
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update stock");
+    } finally {
+      setPending(false);
+    }
+  }
+
   const bulkOptions =
     mixedKinds || wholesaleSelected
       ? WHOLESALE_BULK_STATUS
@@ -511,6 +547,25 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
                         ) : null}
                         {row.walletRefunded ? (
                           <p className="px-3 py-1.5 text-xs text-muted-foreground">Already refunded</p>
+                        ) : null}
+                        {row.wholesaleBundleId && row.bundleActive != null ? (
+                          <>
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50",
+                                row.bundleActive
+                                  ? "font-semibold text-rose-700 hover:bg-rose-50"
+                                  : "font-semibold text-emerald-700 hover:bg-emerald-50",
+                              )}
+                              disabled={pending}
+                              onClick={() => void toggleBundleStock(row)}
+                            >
+                              <PackageX className="h-3.5 w-3.5" />
+                              {row.bundleActive ? "Mark package out of stock" : "Back in stock"}
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     )}

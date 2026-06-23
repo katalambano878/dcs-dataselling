@@ -30,6 +30,8 @@ export interface AdminOrderBoardRow {
   apiSource: string | null;
   apiReference: string | null;
   wholesaleOrderId?: string;
+  wholesaleBundleId?: string;
+  bundleActive?: boolean;
   walletRefunded?: boolean;
 }
 
@@ -90,7 +92,7 @@ export async function fetchAdminOrderBoardRows(
           id, reference, status, source, payment_provider, payment_reference, supplier, supplier_reference, supplier_status, created_at,
           vendors!inner ( business_name, slug )
         ),
-        wholesale_bundles!inner ( name, network, data_mb, sku )
+        wholesale_bundles!inner ( id, name, network, data_mb, sku, active )
       `,
       )
       .order("created_at", { ascending: false })
@@ -151,8 +153,8 @@ export async function fetchAdminOrderBoardRows(
               vendors: { business_name: string; slug: string } | { business_name: string; slug: string }[];
             }>;
         wholesale_bundles:
-          | { name: string; network: string; data_mb: number; sku: string }
-          | { name: string; network: string; data_mb: number; sku: string }[];
+          | { id: string; name: string; network: string; data_mb: number; sku: string; active: boolean }
+          | { id: string; name: string; network: string; data_mb: number; sku: string; active: boolean }[];
       };
 
       const order = Array.isArray(row.wholesale_orders)
@@ -188,6 +190,8 @@ export async function fetchAdminOrderBoardRows(
         apiSource: order.supplier ?? "skanka5",
         apiReference: order.supplier_reference,
         wholesaleOrderId: order.id,
+        wholesaleBundleId: bundle.id,
+        bundleActive: bundle.active,
       };
 
       if (q) {

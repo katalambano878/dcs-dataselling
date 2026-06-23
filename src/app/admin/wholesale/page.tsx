@@ -18,13 +18,14 @@ export default async function AdminWholesalePage() {
     profile ? fetchAdminWishlistIds(profile.id) : Promise.resolve([]),
   ]);
   const active = bundles.filter((b) => b.active).length;
+  const outOfStock = bundles.length - active;
 
   return (
     <AdminPageRoot>
       <AdminPageIntro
         badge="Supply catalogue"
         description="Set wholesale prices agents pay — they add markup in their own storefront catalogue."
-        meta={`${bundles.length} bundles · ${active} active for vendors`}
+        meta={`${bundles.length} bundles · ${active} in stock${outOfStock > 0 ? ` · ${outOfStock} out of stock` : ""}`}
       />
       <WholesaleAdmin bundles={bundles} wishlistIds={wishlistIds} />
     </AdminPageRoot>
