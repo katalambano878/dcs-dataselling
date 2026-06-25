@@ -111,13 +111,16 @@ export async function smsWalletOrderRefund(params: {
   phone: string;
   amount: number;
   reference: string;
+  balanceAfter?: number;
   context?: Record<string, unknown>;
 }): Promise<SmsResult> {
   const dedupeRef = `REFUND-${params.reference}-${params.amount}`;
   if (await smsAlreadySent("wallet_order_refund", dedupeRef)) {
     return { ok: false, skipped: true, reason: "already_sent" };
   }
-  const message = `${SITE.name}: Order ${params.reference} failed — GHS ${params.amount.toFixed(2)} refunded to your wallet. Check your transaction history.`;
+  const balancePart =
+    params.balanceAfter != null ? ` Balance GHS ${params.balanceAfter.toFixed(2)}.` : "";
+  const message = `${SITE.name}: Order ${params.reference} — GHS ${params.amount.toFixed(2)} refunded to your wallet.${balancePart} Check your transaction history.`;
   const ctx: SmsLogContext = {
     template: "wallet_order_refund",
     context: { reference: dedupeRef, orderReference: params.reference, amount: params.amount, ...params.context },

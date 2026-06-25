@@ -45,7 +45,15 @@ export async function POST(request: Request) {
     const phone = result.notifyPhone;
     const amount = result.amount;
     const reference = result.reference;
-    after(() => smsWalletOrderRefund({ phone, amount, reference, context: { item_id: body.id } }));
+    after(() =>
+      smsWalletOrderRefund({
+        phone,
+        amount,
+        reference,
+        balanceAfter: result.balanceAfter,
+        context: { item_id: body.id },
+      }),
+    );
   }
 
   return NextResponse.json({

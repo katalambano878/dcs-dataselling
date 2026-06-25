@@ -420,10 +420,19 @@ export function wholesaleOrderRefundReference(orderReference: string) {
 }
 
 export type WalletRefundResult =
-  | { ok: true; amount: number; reference: string; vendorId: string; notifyPhone: string | null }
+  | {
+      ok: true;
+      amount: number;
+      reference: string;
+      vendorId: string;
+      notifyPhone: string | null;
+      balanceAfter: number;
+    }
   | { ok: false; error: string; alreadyRefunded?: boolean };
 
-/** Admin/manual refund for a single failed wholesale line debited from the agent wallet. */
+const REFUNDABLE_WHOLESALE_LINE_STATUSES = new Set(["failed", "processing", "queued", "pending"]);
+
+/** Admin/manual refund for a single wholesale line debited from the agent wallet. */
 export async function refundWholesaleItemToWallet(itemId: string): Promise<WalletRefundResult> {
   if (!hasSupabaseConfig()) return { ok: false, error: "Database not configured" };
 
@@ -464,8 +473,8 @@ export async function refundWholesaleItemToWallet(itemId: string): Promise<Walle
   const order = Array.isArray(row.wholesale_orders) ? row.wholesale_orders[0] : row.wholesale_orders;
   if (!order) return { ok: false, error: "Parent order not found" };
 
-  if (row.status !== "failed") {
-    return { ok: false, error: "Only failed lines can be refunded" };
+  if (!REFUNDABLE_WHOLESALE_LINE_STATUSES.has(row.status)) {
+    return { ok: false, error: "This order line cannot be refunded (already delivered or closed)" };
   }
 
   const refundRef = wholesaleItemRefundReference(itemId);
@@ -514,10 +523,17 @@ export async function refundWholesaleItemToWallet(itemId: string): Promise<Walle
     amount,
     "refund",
     refundRef,
-    `Refund for failed line ${order.reference} → ${row.recipient_phone}`,
+    `Refund for line ${order.reference} → ${row.recipient_phone}`,
   );
 
+  const { data: walletRow } = await service
+    .from("wallets")
+    .select("balance")
+    .eq("vendor_id", order.vendor_id)
+    .maybeSingle();
+
   const notifyPhone = await getVendorNotifyPhone(order.vendor_id);
+  const balanceAfter = Number((walletRow as { balance: number } | null)?.balance ?? 0);
 
   return {
     ok: true,
@@ -525,5 +541,6 @@ export async function refundWholesaleItemToWallet(itemId: string): Promise<Walle
     reference: order.reference,
     vendorId: order.vendor_id,
     notifyPhone,
+    balanceAfter,
   };
 }

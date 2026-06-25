@@ -4,15 +4,14 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckSquare,
+  ChevronDown,
   ClipboardList,
   ClipboardPaste,
   Download,
-  MoreHorizontal,
   PackageX,
   RefreshCw,
   Search,
   Square,
-  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -67,6 +66,24 @@ const WHOLESALE_BULK_STATUS = [
   { value: "fulfilled", label: "Mark delivered" },
   { value: "failed", label: "Mark undelivered" },
 ] as const;
+
+/** Row ⋮ menu labels — aligned with ops workflow (Set → Process → Deliver → Refund). */
+const WHOLESALE_ROW_ACTIONS = [
+  { value: "queued", label: "Set to queued" },
+  { value: "processing", label: "Process order" },
+  { value: "fulfilled", label: "Deliver order" },
+  { value: "failed", label: "Mark undelivered" },
+] as const;
+
+const CUSTOMER_ROW_ACTIONS = [
+  { value: "queued", label: "Set to queued" },
+  { value: "processing", label: "Process order" },
+  { value: "fulfilled", label: "Deliver order" },
+  { value: "failed", label: "Mark failed" },
+  { value: "refunded", label: "Refund order" },
+] as const;
+
+const REFUNDABLE_WHOLESALE_STATUSES = new Set(["failed", "processing", "queued", "pending"]);
 
 const CUSTOMER_BULK_STATUS = [
   { value: "queued", label: "Set to queued" },
@@ -220,20 +237,40 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
     await runBulkStatus(status, [row]);
   }
 
-  function canRefundRow(row: AdminOrderBoardRow) {
+  function isWalletPaidWholesale(row: AdminOrderBoardRow) {
     return (
       row.kind === "wholesale_item" &&
-      row.orderStatus === "failed" &&
-      !row.walletRefunded &&
       (row.paymentMethod === "wallet" || row.paymentMethod === "api")
     );
   }
 
+  function canRefundRow(row: AdminOrderBoardRow) {
+    return (
+      isWalletPaidWholesale(row) &&
+      !row.walletRefunded &&
+      REFUNDABLE_WHOLESALE_STATUSES.has(row.orderStatus)
+    );
+  }
+
+  function refundBlockReason(row: AdminOrderBoardRow): string | null {
+    if (!isWalletPaidWholesale(row)) return "Only wallet-paid agent orders can be refunded here";
+    if (row.walletRefunded) return "Already refunded to wallet";
+    if (row.orderStatus === "fulfilled") return "Delivered orders cannot be refunded";
+    if (!REFUNDABLE_WHOLESALE_STATUSES.has(row.orderStatus)) {
+      return "This order status cannot be refunded";
+    }
+    return null;
+  }
+
   async function refundRow(row: AdminOrderBoardRow) {
-    if (!canRefundRow(row)) return;
+    const blockReason = refundBlockReason(row);
+    if (blockReason) {
+      toast.error(blockReason);
+      return;
+    }
     if (
       !window.confirm(
-        `Refund ${formatGHS(row.price)} to ${row.agentName}'s wallet for order ${row.orderReference}?`,
+        `Refund ${formatGHS(row.price)} to ${row.agentName}'s wallet for order ${row.orderReference}? The agent will be notified by SMS.`,
       )
     ) {
       return;
@@ -504,49 +541,60 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
                     {row.apiReference ?? "—"}
                   </AdminTd>
                   <AdminTd className="relative">
-                    <button
+                    <Button
                       type="button"
-                      className="rounded-lg p-1 hover:bg-slate-100"
+                      size="sm"
+                      className="h-8 gap-1 bg-blue-600 px-3 text-white hover:bg-blue-700"
                       aria-label="Actions"
+                      aria-expanded={actionOpen === key}
+                      disabled={pending}
                       onClick={() => setActionOpen(actionOpen === key ? null : key)}
                     >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+                      Actions
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
                     {actionOpen === key && (
                       <div
-                        className="absolute right-0 top-full z-20 min-w-[180px] rounded-lg border border-slate-200 py-1 shadow-lg"
+                        className="absolute right-0 top-full z-20 min-w-[200px] rounded-lg border border-slate-200 py-1 shadow-lg"
                         style={{ backgroundColor: "#ffffff", color: "#334155" }}
                       >
                         {(row.kind === "wholesale_item"
-                          ? WHOLESALE_BULK_STATUS
-                          : CUSTOMER_BULK_STATUS
+                          ? WHOLESALE_ROW_ACTIONS
+                          : CUSTOMER_ROW_ACTIONS
                         ).map((o) => (
                           <button
                             key={o.value}
                             type="button"
-                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                            className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
                             disabled={pending}
                             onClick={() => void rowAction(row, o.value)}
                           >
                             {o.label}
                           </button>
                         ))}
-                        {canRefundRow(row) ? (
+                        {isWalletPaidWholesale(row) ? (
                           <>
                             <div className="my-1 border-t border-slate-100" />
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
-                              disabled={pending}
+                              className={cn(
+                                "block w-full px-3 py-2 text-left text-sm",
+                                canRefundRow(row)
+                                  ? "font-semibold text-blue-700 hover:bg-blue-50"
+                                  : "cursor-not-allowed text-slate-400",
+                              )}
+                              disabled={pending || !canRefundRow(row)}
+                              title={refundBlockReason(row) ?? undefined}
                               onClick={() => void refundRow(row)}
                             >
-                              <Undo2 className="h-3.5 w-3.5" />
-                              Refund to wallet
+                              Refund order
                             </button>
+                            {row.walletRefunded ? (
+                              <p className="px-3 pb-1 text-xs text-muted-foreground">
+                                Refunded to agent wallet
+                              </p>
+                            ) : null}
                           </>
-                        ) : null}
-                        {row.walletRefunded ? (
-                          <p className="px-3 py-1.5 text-xs text-muted-foreground">Already refunded</p>
                         ) : null}
                         {row.wholesaleBundleId && row.bundleActive != null ? (
                           <>
@@ -554,7 +602,7 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
                             <button
                               type="button"
                               className={cn(
-                                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50",
+                                "block w-full px-3 py-2 text-left text-sm hover:bg-slate-50",
                                 row.bundleActive
                                   ? "font-semibold text-rose-700 hover:bg-rose-50"
                                   : "font-semibold text-emerald-700 hover:bg-emerald-50",
@@ -562,7 +610,6 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
                               disabled={pending}
                               onClick={() => void toggleBundleStock(row)}
                             >
-                              <PackageX className="h-3.5 w-3.5" />
                               {row.bundleActive ? "Mark package out of stock" : "Back in stock"}
                             </button>
                           </>
