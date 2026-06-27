@@ -9,11 +9,16 @@ import { Input } from "@/components/ui/input";
 
 const initialState: AuthActionState = {};
 
-export function LoginForm() {
+type LoginFormProps = {
+  redirectTo?: string;
+};
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const [state, action, pending] = useActionState(signIn, initialState);
 
   return (
     <form action={action} className="mt-6 space-y-4">
+      {redirectTo ? <input type="hidden" name="redirectTo" value={redirectTo} /> : null}
       <Input
         label="Email"
         type="email"

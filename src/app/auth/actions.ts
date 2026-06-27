@@ -9,6 +9,13 @@ export type AuthActionState = {
   error?: string;
 };
 
+function safeRedirectPath(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const path = value.trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) return null;
+  return path;
+}
+
 export async function signIn(
   _prev: AuthActionState,
   formData: FormData,
@@ -46,7 +53,8 @@ export async function signIn(
     .maybeSingle();
 
   const role = (profile?.role as UserRole | undefined) ?? "customer";
-  redirect(await getPostLoginRedirect(user.id, role));
+  const redirectTo = safeRedirectPath(String(formData.get("redirectTo") ?? ""));
+  redirect(redirectTo ?? (await getPostLoginRedirect(user.id, role)));
 }
 
 export async function signOut() {

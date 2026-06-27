@@ -21,7 +21,14 @@ const PERKS = [
   { icon: ShieldCheck, text: "Secure, BoG-licensed payments" },
 ] as const;
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : undefined;
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-100 lg:grid lg:min-h-screen lg:grid-cols-2">
       {/* Brand panel — full-bleed photo */}
@@ -108,7 +115,7 @@ export default function LoginPage() {
                 Access your orders, wallet, and vendor tools.
               </p>
 
-              <LoginForm />
+              <LoginForm redirectTo={redirectTo} />
 
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
