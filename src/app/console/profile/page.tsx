@@ -1,3 +1,12 @@
+import Link from "next/link";
+import { ExternalLink, User } from "lucide-react";
+import {
+  AdminKvList,
+  AdminKvRow,
+  AdminPageIntro,
+  AdminPageRoot,
+  AdminSection,
+} from "@/components/admin";
 import { getCurrentProfile, getCurrentVendor } from "@/lib/auth/session";
 import { fetchVendorProfilePhone } from "@/lib/data/vendor-profile";
 import { getOrCreateConsoleAccount } from "@/lib/console/account";
@@ -15,38 +24,40 @@ export default async function ConsoleProfilePage() {
   const phone = profilePhone ?? vendor?.momoNumber ?? vendor?.whatsappNumber ?? "—";
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-xl font-bold">User Profile</h1>
-      <dl className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Business</dt>
-          <dd className="font-medium">{vendor?.businessName}</dd>
-        </div>
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Username</dt>
-          <dd className="font-mono">@{vendor?.slug}</dd>
-        </div>
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Email</dt>
-          <dd>{profile?.email}</dd>
-        </div>
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Phone</dt>
-          <dd>{phone === "—" ? phone : formatPhone(phone)}</dd>
-        </div>
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Console balance</dt>
-          <dd className="font-semibold text-blue-700">{formatConsoleData(account?.balanceMb ?? 0)}</dd>
-        </div>
-        <div className="flex justify-between px-4 py-3 text-sm">
-          <dt className="text-muted-foreground">Main wallet</dt>
-          <dd>
-            <a href={`${SITE.url}/vendor/dashboard/wallet`} className="text-blue-600 hover:underline">
-              Open GHS wallet on {SITE.shortName}
-            </a>
-          </dd>
-        </div>
-      </dl>
-    </div>
+    <AdminPageRoot>
+      <AdminPageIntro
+        badge="Account"
+        description="Your console identity and linked contact details."
+        meta={`@${vendor?.slug ?? "agent"}`}
+      />
+
+      <AdminSection title="User Profile" icon={User}>
+        <AdminKvList>
+          <AdminKvRow label="Business" value={vendor?.businessName ?? "—"} />
+          <AdminKvRow label="Username" value={`@${vendor?.slug ?? "—"}`} />
+          <AdminKvRow label="Email" value={profile?.email ?? "—"} />
+          <AdminKvRow
+            label="Phone"
+            value={phone === "—" ? phone : formatPhone(phone)}
+          />
+          <AdminKvRow
+            label="Console balance"
+            value={formatConsoleData(account?.balanceMb ?? 0)}
+          />
+          <AdminKvRow
+            label="Main wallet"
+            value={
+              <Link
+                href={`${SITE.url}/vendor/dashboard/wallet`}
+                className="inline-flex items-center gap-1 text-amber-300 hover:text-amber-200"
+              >
+                Open GHS wallet on {SITE.shortName}
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            }
+          />
+        </AdminKvList>
+      </AdminSection>
+    </AdminPageRoot>
   );
 }

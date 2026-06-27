@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send, Signal } from "lucide-react";
 import { toast } from "sonner";
+import { AdminSection } from "@/components/admin";
 import { NetworkBadge } from "@/components/marketplace/network-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,71 +44,87 @@ export function ConsoleSendForm({ balanceMb }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="console-card mx-auto max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div>
-        <h1 className="text-lg font-semibold">Send Bundle</h1>
-        <p className="text-sm text-muted-foreground">
-          Balance: <strong>{formatConsoleData(balanceMb)}</strong> — deduction is in megabytes.
-        </p>
-      </div>
+    <AdminSection
+      title="Send Bundle"
+      description={
+        <>
+          Available balance: <strong>{formatConsoleData(balanceMb)}</strong>. Deductions are in
+          megabytes, not GHS.
+        </>
+      }
+      icon={Send}
+    >
+      <form onSubmit={submit} className="space-y-4 p-4 sm:p-5">
+        <label className="block text-sm font-medium text-slate-200">
+          Network
+          <select
+            className="mt-1 flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white"
+            value={network}
+            onChange={(e) => setNetwork(e.target.value as NetworkId)}
+          >
+            {NETWORKS.map((n) => (
+              <option key={n.id} value={n.id} className="text-slate-900">
+                {n.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <label className="block text-sm font-medium">
-        Network
-        <select
-          className="mt-1 flex h-10 w-full rounded-lg border border-border px-3"
-          value={network}
-          onChange={(e) => setNetwork(e.target.value as NetworkId)}
-        >
-          {NETWORKS.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <label className="block text-sm font-medium text-slate-200">
+          Recipient phone
+          <Input
+            className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/40"
+            placeholder="0241234567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+            required
+          />
+        </label>
 
-      <label className="block text-sm font-medium">
-        Recipient phone
-        <Input
-          className="mt-1"
-          placeholder="0241234567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-          required
-        />
-      </label>
-
-      <div>
-        <p className="text-sm font-medium">Bundle size</p>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {CONSOLE_SEND_SIZES_MB.map((mb) => (
-            <button
-              key={mb}
-              type="button"
-              disabled={mb > balanceMb}
-              onClick={() => setAmountMb(mb)}
-              className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
-                amountMb === mb
-                  ? "border-blue-600 bg-blue-50 text-blue-700"
-                  : "border-slate-200 hover:border-slate-300 disabled:opacity-40"
-              }`}
-            >
-              {formatConsoleData(mb)}
-            </button>
-          ))}
+        <div>
+          <p className="text-sm font-medium text-slate-200">Bundle size</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {CONSOLE_SEND_SIZES_MB.map((mb) => (
+              <button
+                key={mb}
+                type="button"
+                disabled={mb > balanceMb}
+                onClick={() => setAmountMb(mb)}
+                className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+                  amountMb === mb
+                    ? "border-amber-400/50 bg-amber-500/15 text-amber-200"
+                    : "border-white/10 bg-white/5 text-white/80 hover:border-white/20 disabled:opacity-40"
+                }`}
+              >
+                {formatConsoleData(mb)}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-        <NetworkBadge network={network} size="xs" />
-        <span>
-          Send <strong>{formatConsoleData(amountMb)}</strong> to {phone || "…"}
-        </span>
-      </div>
+        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
+          <NetworkBadge network={network} size="xs" />
+          <span>
+            Send <strong className="text-white">{formatConsoleData(amountMb)}</strong> to{" "}
+            {phone || "recipient"}
+          </span>
+        </div>
 
-      <Button type="submit" className="w-full" disabled={pending || amountMb > balanceMb || phone.length < 10}>
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send bundle"}
-      </Button>
-    </form>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={pending || amountMb > balanceMb || phone.length < 10}
+        >
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Signal className="h-4 w-4" />
+              Send bundle
+            </>
+          )}
+        </Button>
+      </form>
+    </AdminSection>
   );
 }

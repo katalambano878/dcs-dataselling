@@ -1,7 +1,21 @@
 import { format } from "date-fns";
+import { Wallet } from "lucide-react";
+import {
+  AdminDataTable,
+  AdminEmptyState,
+  AdminPageIntro,
+  AdminPageRoot,
+  AdminSection,
+  AdminTableBody,
+  AdminTableHead,
+  AdminTd,
+  AdminTh,
+  AdminTr,
+} from "@/components/admin";
 import { getCurrentVendor } from "@/lib/auth/session";
 import { fetchConsoleCredits } from "@/lib/console/send";
 import { formatConsoleData } from "@/lib/console/units";
+import { SITE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -10,43 +24,43 @@ export default async function ConsoleCreditsPage() {
   const rows = vendor ? await fetchConsoleCredits(vendor.id, 100) : [];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Credit History</h1>
-      <p className="text-sm text-muted-foreground">
-        Data credits allocated to your console account by {vendor?.businessName ?? "admin"}.
-      </p>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[560px] text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">Receiver</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Reference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                  No credits yet — admin will allocate data to your console.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3">{vendor?.businessName ?? "—"}</td>
-                  <td className="px-4 py-3 font-medium">{formatConsoleData(row.amountMb)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+    <AdminPageRoot>
+      <AdminPageIntro
+        badge="Credit allocations"
+        description={`Data credits allocated to your console account by ${SITE.name} admin.`}
+        meta={`${rows.length} allocation${rows.length === 1 ? "" : "s"}`}
+      />
+
+      <AdminSection title="Credit History" icon={Wallet}>
+        {rows.length === 0 ? (
+          <AdminEmptyState
+            icon={Wallet}
+            title="No credits yet"
+            description="Admin will allocate data to your console when your account is topped up."
+          />
+        ) : (
+          <AdminDataTable minWidth="560px">
+            <AdminTableHead>
+              <AdminTh>Receiver</AdminTh>
+              <AdminTh>Amount</AdminTh>
+              <AdminTh>Date</AdminTh>
+              <AdminTh>Reference</AdminTh>
+            </AdminTableHead>
+            <AdminTableBody>
+              {rows.map((row) => (
+                <AdminTr key={row.id}>
+                  <AdminTd>{vendor?.businessName ?? "—"}</AdminTd>
+                  <AdminTd className="font-medium">{formatConsoleData(row.amountMb)}</AdminTd>
+                  <AdminTd className="whitespace-nowrap text-white/55">
                     {format(new Date(row.createdAt), "yyyy-MM-dd HH:mm")}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">{row.reference}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  </AdminTd>
+                  <AdminTd className="font-mono text-xs">{row.reference}</AdminTd>
+                </AdminTr>
+              ))}
+            </AdminTableBody>
+          </AdminDataTable>
+        )}
+      </AdminSection>
+    </AdminPageRoot>
   );
 }
