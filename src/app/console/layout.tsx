@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { getCurrentProfile, getCurrentVendor } from "@/lib/auth/session";
 import { getOrCreateConsoleAccount } from "@/lib/console/account";
-import { formatConsoleData } from "@/lib/console/units";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 import { SITE } from "@/lib/constants";
+import { getConsoleHomePath, isConsoleHost } from "@/lib/platform/console-host";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   }
 
   const vendor = await getCurrentVendor();
-  if (!vendor) redirect("/auth/login?next=/console");
+  const host = (await headers()).get("host");
+  const onConsoleHost = isConsoleHost(host);
+  const loginNext = onConsoleHost ? getConsoleHomePath() : "/console";
+
+  if (!vendor) redirect(`/auth/login?next=${encodeURIComponent(loginNext)}`);
 
   if (vendor.status === "suspended" || vendor.status === "rejected") {
     return (
-      <ConsoleShell businessName={vendor.businessName} username={vendor.slug}>
+      <ConsoleShell businessName={vendor.businessName} username={vendor.slug} onConsoleHost={onConsoleHost}>
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
           <p className="font-semibold text-rose-800">Account not active</p>
           <p className="mt-2 text-sm text-rose-700">Contact support to restore console access.</p>
@@ -38,7 +43,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
 
   if (!account?.enabled) {
     return (
-      <ConsoleShell businessName={vendor.businessName} username={username}>
+      <ConsoleShell businessName={vendor.businessName} username={username} onConsoleHost={onConsoleHost}>
         <div className="mx-auto max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
           <p className="font-semibold text-amber-900">Console not activated</p>
           <p className="mt-2 text-sm text-amber-800">
@@ -56,7 +61,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   void profile;
 
   return (
-    <ConsoleShell businessName={vendor.businessName} username={username}>
+    <ConsoleShell businessName={vendor.businessName} username={username} onConsoleHost={onConsoleHost}>
       {children}
     </ConsoleShell>
   );

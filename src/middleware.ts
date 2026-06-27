@@ -4,9 +4,17 @@ import {
   fetchMaintenanceState,
   isMaintenanceBypassPath,
 } from "@/lib/platform/maintenance-edge";
-import { CONSOLE_PATH_PREFIX, getConsolePublicUrl, isConsoleHost } from "@/lib/platform/console-host";
+import {
+  CONSOLE_PATH_PREFIX,
+  consoleInternalToPublicPath,
+  consolePublicToInternalPath,
+  getConsolePublicUrl,
+  isConsoleHost,
+  isLegacyConsolePrefixedPath,
+} from "@/lib/platform/console-host";
 
 const PROTECTED_PREFIXES = ["/admin", "/vendor/dashboard", "/account", "/checkout", CONSOLE_PATH_PREFIX];
+const MAIN_SITE_PREFIXES = ["/admin", "/vendor", "/account", "/orders", "/create-store", "/checkout"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -15,27 +23,34 @@ export async function middleware(request: NextRequest) {
 
   if (onConsoleHost) {
     const mainSite = process.env.NEXT_PUBLIC_SITE_URL ?? "https://dcselite.com";
-    const mainSitePrefixes = ["/admin", "/vendor", "/account", "/orders", "/create-store", "/checkout"];
-    if (mainSitePrefixes.some((p) => pathname.startsWith(p))) {
+
+    if (MAIN_SITE_PREFIXES.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL(`${pathname}${request.nextUrl.search}`, mainSite));
     }
 
-    if (
-      !pathname.startsWith(CONSOLE_PATH_PREFIX) &&
-      !pathname.startsWith("/auth") &&
-      !pathname.startsWith("/api") &&
-      !pathname.startsWith("/maintenance") &&
-      !pathname.startsWith("/_next") &&
-      pathname !== "/favicon.ico"
-    ) {
-      if (pathname === "/") {
-        return NextResponse.redirect(new URL(CONSOLE_PATH_PREFIX, request.url));
+    // Legacy /console/* or bad /console/vendor/* → clean console URLs.
+    if (isLegacyConsolePrefixedPath(pathname)) {
+      const suffix = pathname.slice(CONSOLE_PATH_PREFIX.length);
+      if (suffix.startsWith("/vendor") || suffix.startsWith("/admin")) {
+        return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
       }
-      return NextResponse.redirect(new URL(`${CONSOLE_PATH_PREFIX}${pathname}`, request.url));
+      const publicPath = consoleInternalToPublicPath(pathname);
+      if (publicPath) {
+        return NextResponse.redirect(new URL(`${publicPath}${request.nextUrl.search}`, request.url));
+      }
+      return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
+    }
+
+    // BestPay-style clean paths: console.dcselite.com/send → internal /console/send
+    const internal = consolePublicToInternalPath(pathname);
+    if (internal) {
+      const url = request.nextUrl.clone();
+      url.pathname = internal;
+      return NextResponse.rewrite(url);
     }
   } else if (pathname.startsWith(CONSOLE_PATH_PREFIX)) {
     const subPath = pathname.slice(CONSOLE_PATH_PREFIX.length) || "";
-    const target = `${getConsolePublicUrl()}${CONSOLE_PATH_PREFIX}${subPath}${request.nextUrl.search}`;
+    const target = `${getConsolePublicUrl()}${subPath || "/"}${request.nextUrl.search}`;
     return NextResponse.redirect(target);
   }
 

@@ -5,7 +5,7 @@ import { ArrowRight, Package, ShieldCheck, Store, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DcsLogo } from "@/components/brand/dcs-logo";
 import { LoginForm } from "@/components/auth/login-form";
-import { isConsoleHost } from "@/lib/platform/console-host";
+import { isConsoleHost, getConsoleHomePath } from "@/lib/platform/console-host";
 
 import type { Metadata } from "next";
 
@@ -23,6 +23,12 @@ const PERKS = [
   { icon: ShieldCheck, text: "Secure, BoG-licensed payments" },
 ] as const;
 
+const CONSOLE_PERKS = [
+  { icon: Zap, text: "Send bundles from your GB / MB balance" },
+  { icon: Package, text: "Separate from the main-site GHS wallet" },
+  { icon: ShieldCheck, text: "BestPay-style agent data console" },
+] as const;
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -32,7 +38,8 @@ export default async function LoginPage({
   const host = (await headers()).get("host");
   const onConsole = isConsoleHost(host);
   const redirectTo =
-    next?.startsWith("/") && !next.startsWith("//") ? next : onConsole ? "/console" : undefined;
+    next?.startsWith("/") && !next.startsWith("//") ? next : onConsole ? getConsoleHomePath() : undefined;
+  const perks = onConsole ? CONSOLE_PERKS : PERKS;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-100 lg:grid lg:min-h-screen lg:grid-cols-2">
@@ -67,16 +74,26 @@ export default async function LoginPage({
 
         <div className="relative z-10 px-8 pb-4 pt-10 lg:pt-12">
           <h1 className="max-w-sm text-3xl font-extrabold tracking-tight text-white">
-            Welcome back to{" "}
-            <span className="text-aurora">Ghana&apos;s elite data platform.</span>
+            {onConsole ? (
+              <>
+                DCS <span className="text-blue-300">Data Console</span>
+              </>
+            ) : (
+              <>
+                Welcome back to{" "}
+                <span className="text-aurora">Ghana&apos;s elite data platform.</span>
+              </>
+            )}
           </h1>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-300">
-            Sign in to view orders, manage your account, or access your vendor dashboard.
+            {onConsole
+              ? "Sign in to send bundles from your allocated gigabyte balance — not your GHS wallet."
+              : "Sign in to view orders, manage your account, or access your vendor dashboard."}
           </p>
         </div>
 
         <ul className="relative z-10 space-y-3 px-8 pb-10 lg:pb-12">
-          {PERKS.map((item) => (
+          {perks.map((item) => (
             <li
               key={item.text}
               className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3 backdrop-blur-md"
@@ -107,21 +124,25 @@ export default async function LoginPage({
 
         <div className="mx-auto w-full max-w-md">
           <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_20px_60px_rgba(6,9,20,0.08)]">
-            <div className="h-1 bg-gradient-to-r from-cyan-500 via-teal-500 to-cyan-400" />
+            <div className={`h-1 bg-gradient-to-r ${onConsole ? "from-blue-600 via-blue-500 to-indigo-500" : "from-cyan-500 via-teal-500 to-cyan-400"}`} />
 
             <div className="p-6 sm:p-8">
-              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-600">
-                Account
+              <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${onConsole ? "text-blue-600" : "text-cyan-600"}`}>
+                {onConsole ? "Data Console" : "Account"}
               </span>
               <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">
                 Sign in
               </h2>
               <p className="mt-1 text-sm text-muted">
-                Access your orders, wallet, and vendor tools.
+                {onConsole
+                  ? "Access your GB balance and send bundles to customers."
+                  : "Access your orders, wallet, and vendor tools."}
               </p>
 
               <LoginForm redirectTo={redirectTo} />
 
+              {!onConsole ? (
+                <>
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-border" />
@@ -144,8 +165,11 @@ export default async function LoginPage({
                   </Link>
                 </Button>
               </div>
+                </>
+              ) : null}
             </div>
 
+            {!onConsole ? (
             <div className="border-t border-border bg-slate-50/80 px-6 py-4 text-center sm:px-8">
               <p className="text-sm text-muted">
                 New vendor?{" "}
@@ -164,11 +188,12 @@ export default async function LoginPage({
                 </Link>
               </p>
             </div>
+            ) : null}
           </div>
 
           <p className="mt-4 text-center text-xs text-muted">
-            <Link href="/" className="font-semibold text-foreground hover:text-cyan-700">
-              ← Back to home
+            <Link href={onConsole ? "/" : "/"} className="font-semibold text-foreground hover:text-cyan-700">
+              ← {onConsole ? "Back to console home" : "Back to home"}
             </Link>
           </p>
         </div>

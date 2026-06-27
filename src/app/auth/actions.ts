@@ -1,8 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { getPostLoginRedirect } from "@/lib/auth/onboarding";
+import { getConsoleHomePath, isConsoleHost } from "@/lib/platform/console-host";
 import type { UserRole } from "@/types";
 
 export type AuthActionState = {
@@ -54,6 +56,13 @@ export async function signIn(
 
   const role = (profile?.role as UserRole | undefined) ?? "customer";
   const redirectTo = safeRedirectPath(String(formData.get("redirectTo") ?? ""));
+  const host = (await headers()).get("host");
+  const onConsole = isConsoleHost(host);
+
+  if (onConsole) {
+    redirect(redirectTo ?? getConsoleHomePath());
+  }
+
   redirect(redirectTo ?? (await getPostLoginRedirect(user.id, role)));
 }
 
