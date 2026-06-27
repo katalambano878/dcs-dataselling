@@ -1,9 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { ArrowRight, Package, ShieldCheck, Store, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DcsLogo } from "@/components/brand/dcs-logo";
 import { LoginForm } from "@/components/auth/login-form";
+import { isConsoleHost } from "@/lib/platform/console-host";
 
 import type { Metadata } from "next";
 
@@ -27,7 +29,10 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
-  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : undefined;
+  const host = (await headers()).get("host");
+  const onConsole = isConsoleHost(host);
+  const redirectTo =
+    next?.startsWith("/") && !next.startsWith("//") ? next : onConsole ? "/console" : undefined;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-100 lg:grid lg:min-h-screen lg:grid-cols-2">

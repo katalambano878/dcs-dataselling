@@ -14,6 +14,12 @@ export async function middleware(request: NextRequest) {
   const onConsoleHost = isConsoleHost(host);
 
   if (onConsoleHost) {
+    const mainSite = process.env.NEXT_PUBLIC_SITE_URL ?? "https://dcselite.com";
+    const mainSitePrefixes = ["/admin", "/vendor", "/account", "/orders", "/create-store", "/checkout"];
+    if (mainSitePrefixes.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL(`${pathname}${request.nextUrl.search}`, mainSite));
+    }
+
     if (
       !pathname.startsWith(CONSOLE_PATH_PREFIX) &&
       !pathname.startsWith("/auth") &&
@@ -26,11 +32,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(CONSOLE_PATH_PREFIX, request.url));
       }
       return NextResponse.redirect(new URL(`${CONSOLE_PATH_PREFIX}${pathname}`, request.url));
-    }
-
-    if (pathname.startsWith("/admin") || pathname.startsWith("/vendor")) {
-      const main = process.env.NEXT_PUBLIC_SITE_URL ?? "https://dcselite.com";
-      return NextResponse.redirect(new URL(pathname, main));
     }
   } else if (pathname.startsWith(CONSOLE_PATH_PREFIX)) {
     const subPath = pathname.slice(CONSOLE_PATH_PREFIX.length) || "";
