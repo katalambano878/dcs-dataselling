@@ -3,6 +3,7 @@ import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import type {
   SupplierClient,
+  SupplierOrderScope,
   SupplierSubmitBulkParams,
   SupplierSubmitResult,
   SupplierSubmitSingleParams,
@@ -20,7 +21,7 @@ import type {
  *    processing, NOT fulfilled. No SMS is sent until an admin acts.
  */
 async function logManualEvent(args: {
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
   reference: string;
   payload: unknown;
 }) {

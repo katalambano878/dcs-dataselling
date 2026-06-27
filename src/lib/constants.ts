@@ -13,6 +13,7 @@ export const SITE = {
   longDescription:
     "DCS ELITE is Ghana's elite data platform. Vendors launch their own branded storefront in minutes, customers buy MTN, Telecel and AirtelTigo data bundles with secure MoMo or card payments, and orders are fulfilled instantly via licensed suppliers.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://dcselite.com",
+  consoleUrl: process.env.NEXT_PUBLIC_CONSOLE_URL ?? "https://console.dcselite.com",
   /** ISO country & locale used for Open Graph + structured data */
   locale: "en_GH",
   language: "en",

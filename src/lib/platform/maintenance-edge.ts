@@ -48,6 +48,7 @@ export function isMaintenanceBypassPath(pathname: string): boolean {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/auth") ||
+    pathname.startsWith("/console") ||
     pathname.startsWith("/maintenance") ||
     pathname.startsWith("/_next")
   );

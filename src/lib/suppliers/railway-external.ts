@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
-import type { SupplierNetworkSlug } from "./types";
+import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
  * Railway external wholesale API (outbound supplier).
@@ -50,7 +50,7 @@ export type RailwayResult<T> =
 
 interface LogInput {
   eventType: "submit_single" | "submit_bulk" | "status_poll" | "ping";
-  scope?: "customer_order" | "wholesale_order" | null;
+  scope?: SupplierOrderScope | null;
   reference?: string | null;
   supplierReference?: string | null;
   httpStatus?: number | null;
@@ -233,7 +233,7 @@ export interface SubmitSingleParams {
   msisdn: string;
   volumeMb: number;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export async function submitSingleOrder(
@@ -252,7 +252,12 @@ export async function submitSingleOrder(
     return { ok: false, status: 0, error };
   }
 
-  const resolved = await resolveRailwayProductId(params.network, params.volumeMb);
+  const volumeForCatalogue =
+    params.scope === "console_send"
+      ? Math.round((params.volumeMb / 1000) * 1024)
+      : params.volumeMb;
+
+  const resolved = await resolveRailwayProductId(params.network, volumeForCatalogue);
   if ("error" in resolved) {
     await logSupplierEvent({
       eventType: "submit_single",
@@ -320,7 +325,7 @@ export interface SubmitBulkParams {
   network: SupplierNetworkSlug;
   recipients: Array<{ msisdn: string; volumeMb: number }>;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 /** Railway accepts multiple line items in one POST /orders call. */

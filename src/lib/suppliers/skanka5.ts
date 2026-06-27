@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import type { SupplierOrderScope } from "./types";
 
 /**
  * Skanka5 — DCS data supplier API client.
@@ -114,7 +115,7 @@ function extractApiError(parsed: unknown, status: number): string {
 
 interface LogInput {
   eventType: "submit_single" | "submit_bulk" | "status_poll" | "webhook" | "ping";
-  scope?: "customer_order" | "wholesale_order" | null;
+  scope?: SupplierOrderScope | null;
   reference?: string | null;
   supplierReference?: string | null;
   httpStatus?: number | null;
@@ -200,7 +201,7 @@ export interface SubmitSingleParams {
   msisdn: string;
   volumeMb: number;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export async function submitSingleOrder(
@@ -231,7 +232,10 @@ export async function submitSingleOrder(
     return { ok: false, status: 0, error };
   }
 
-  const volumeMb = toSkanka5VolumeMb(params.volumeMb);
+  const volumeMb =
+    params.scope === "console_send"
+      ? Math.round(params.volumeMb)
+      : toSkanka5VolumeMb(params.volumeMb);
   if (!volumeMb) {
     const error = `Invalid volume_mb for Skanka5: ${params.volumeMb}`;
     await logSupplierEvent({
@@ -269,7 +273,7 @@ export interface SubmitBulkParams {
   network: Skanka5NetworkSlug;
   recipients: Array<{ msisdn: string; volumeMb: number }>;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export async function submitBulkOrder(
@@ -379,7 +383,7 @@ export async function logWebhookEvent(args: {
   ok: boolean;
   supplierReference?: string | null;
   reference?: string | null;
-  scope?: "customer_order" | "wholesale_order" | null;
+  scope?: SupplierOrderScope | null;
   payload?: unknown;
   error?: string | null;
 }) {

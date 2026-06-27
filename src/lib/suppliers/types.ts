@@ -12,20 +12,22 @@ import "server-only";
 
 export type SupplierNetworkSlug = "mtn" | "telecel" | "at";
 
+export type SupplierOrderScope = "customer_order" | "wholesale_order" | "console_send";
+
 export interface SupplierSubmitSingleParams {
   network: SupplierNetworkSlug;
   msisdn: string;
   volumeMb: number;
   /** Our internal reference (used as idempotency key with most APIs) */
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export interface SupplierSubmitBulkParams {
   network: SupplierNetworkSlug;
   recipients: Array<{ msisdn: string; volumeMb: number }>;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export interface SupplierOrderRow {

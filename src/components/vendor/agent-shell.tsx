@@ -22,6 +22,7 @@ import {
   Shield,
   User,
   Menu,
+  Monitor,
   Smartphone,
   ChevronLeft,
   type LucideIcon,
@@ -33,6 +34,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AgentFabStack } from "@/components/vendor/agent-fab-stack";
 import { useVendorCart } from "@/components/vendor/vendor-cart-context";
 import { cn } from "@/lib/utils";
+import { SITE } from "@/lib/constants";
 
 const BOTTOM_NAV = [
   { href: "/vendor/dashboard", label: "Home", icon: Home, match: (p: string) => p === "/vendor/dashboard" },
@@ -106,6 +108,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Extra services",
     items: [
       { href: "/vendor/dashboard/developer", label: "Developer", icon: Code, match: (p) => p.startsWith("/vendor/dashboard/developer") },
+      { href: `${SITE.consoleUrl}/console`, label: "Data Console", icon: Monitor, match: () => false },
       { href: "/vendor/dashboard/mtn-afa", label: "MTN AFA", icon: Shield, match: (p) => p.startsWith("/vendor/dashboard/mtn-afa") },
       { href: "/vendor/dashboard/profile", label: "Profile", icon: User, match: (p) => p.startsWith("/vendor/dashboard/profile") },
     ],

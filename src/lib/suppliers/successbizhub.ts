@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
-import type { SupplierNetworkSlug } from "./types";
+import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
  * DataCoreGH wholesale data supplier (kept under the legacy "successbizhub"
@@ -107,7 +107,7 @@ export function toSuccessBizPhone(raw: string): string | null {
 
 interface LogInput {
   eventType: "submit_single" | "submit_bulk" | "status_poll" | "webhook" | "ping";
-  scope?: "customer_order" | "wholesale_order" | null;
+  scope?: SupplierOrderScope | null;
   reference?: string | null;
   supplierReference?: string | null;
   httpStatus?: number | null;
@@ -191,7 +191,7 @@ export interface SubmitSingleParams {
   msisdn: string;
   volumeMb: number;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 export async function submitSingleOrder(
@@ -227,7 +227,9 @@ export async function submitSingleOrder(
   const body: Record<string, unknown> = {
     type: "single",
     // DataCoreGH expects the GB value as a number (see GET /offers volumes).
-    volume: Number(volumeGbFromMb(params.volumeMb)),
+    volume: params.scope === "console_send"
+      ? +(params.volumeMb / 1000).toFixed(2)
+      : Number(volumeGbFromMb(params.volumeMb)),
     phone,
     offerSlug,
     metadata: { idempotencyKey: params.reference },
@@ -269,7 +271,7 @@ export interface SubmitBulkParams {
   network: SupplierNetworkSlug;
   recipients: Array<{ msisdn: string; volumeMb: number }>;
   reference: string;
-  scope: "customer_order" | "wholesale_order";
+  scope: SupplierOrderScope;
 }
 
 /** Submit each line as a single order (API supports bulk but schema is not published). */
