@@ -1,13 +1,15 @@
 /**
- * Link a user to a vendor (if needed) and enable the data console with starter credit.
+ * Link a user to a vendor (if needed). Optionally allocate console credit (production: use admin UI).
  * Usage: node --env-file=.env.local scripts/setup-console-user.mjs <email> [gb]
+ * Omit gb (or pass 0) to create/link vendor only — no credit is added.
  */
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const email = (process.argv[2] ?? "").trim().toLowerCase();
-const gb = Number(process.argv[3] ?? 10);
+const gbArg = process.argv[3];
+const gb = gbArg === undefined ? 0 : Number(gbArg);
 
 if (!url || !serviceKey) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -59,7 +61,7 @@ if (!vendorId) {
     .insert({
       user_id: userId,
       slug,
-      business_name: "DCS Console Demo",
+      business_name: "Console Agent",
       api_only: true,
       status: "approved",
       verified: true,
@@ -77,6 +79,23 @@ if (!vendorId) {
   console.log("Created vendor:", inserted.slug, vendorId);
 } else {
   console.log("Using existing vendor:", existingVendor.slug, vendorId);
+}
+
+if (gb <= 0) {
+  const { data: acct } = await supabase
+    .from("vendor_console_accounts")
+    .select("vendor_id")
+    .eq("vendor_id", vendorId)
+    .maybeSingle();
+  if (!acct) {
+    await supabase.from("vendor_console_accounts").insert({
+      vendor_id: vendorId,
+      enabled: false,
+      balance_mb: 0,
+    });
+  }
+  console.log("Vendor linked. No credit allocated — use Admin → Data Consoles to allocate GB.");
+  process.exit(0);
 }
 
 const amountMb = gb * 1000;
