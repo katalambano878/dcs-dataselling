@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getVendorApiContext, isVendorApiError } from "@/lib/auth/vendor-api";
+import { getConsoleApiContext, isConsoleApiError } from "@/lib/auth/console-api";
+import { fetchConsoleProfileState } from "@/lib/console/profile";
 import { sendConsoleBundle } from "@/lib/console/send";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 import type { SupplierNetworkSlug } from "@/lib/suppliers/types";
@@ -18,8 +19,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
 
-  const ctx = await getVendorApiContext();
-  if (isVendorApiError(ctx)) return ctx;
+  const ctx = await getConsoleApiContext();
+  if (isConsoleApiError(ctx)) return ctx;
+
+  const profileState = await fetchConsoleProfileState(ctx.userId);
+  if (!profileState?.complete) {
+    return NextResponse.json(
+      { error: "Complete your profile (name and phone) before sending bundles." },
+      { status: 403 },
+    );
+  }
 
   let body: z.infer<typeof schema>;
   try {
