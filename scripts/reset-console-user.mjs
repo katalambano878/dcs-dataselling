@@ -58,7 +58,7 @@ const { error: ledgerErr } = await supabase
   .from("console_credit_ledger")
   .delete()
   .eq("vendor_id", vendor.id)
-  .or("note.eq.Console demo setup,reference.like.SETUP-%");
+  .or("note.eq.Console setup,note.eq.Console demo setup,reference.like.SETUP-%");
 
 if (ledgerErr) {
   console.error("delete ledger failed:", ledgerErr.message);

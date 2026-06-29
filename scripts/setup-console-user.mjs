@@ -128,7 +128,7 @@ await supabase.from("console_credit_ledger").insert({
   amount_mb: amountMb,
   balance_after_mb: next,
   reference,
-  note: "Console demo setup",
+  note: "Console setup",
   created_by: userId,
 });
 

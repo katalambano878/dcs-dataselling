@@ -122,7 +122,7 @@ function ConsoleSidebarNav({
     <>
       <div className="border-b border-white/6 p-3">
         <Link
-          href={consoleNavHref("profile", onConsoleHost)}
+          href={isStaff ? consoleStaffNavHref("", onConsoleHost) : consoleNavHref("profile", onConsoleHost)}
           onClick={onNavigate}
           className="admin-user-chip block transition hover:bg-white/5"
         >
@@ -319,7 +319,7 @@ export function ConsoleShell({
               Open · {time}
             </span>
             <Link
-              href={consoleNavHref("profile", onConsoleHost)}
+              href={isStaff ? consoleStaffNavHref("", onConsoleHost) : consoleNavHref("profile", onConsoleHost)}
               className="admin-user-chip hidden h-8 items-center gap-1.5 px-2 py-1 transition hover:bg-white/10 sm:flex"
             >
               <div className="avatar !h-6 !w-6 !text-[10px]">

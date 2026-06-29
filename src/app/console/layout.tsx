@@ -29,12 +29,20 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const vendor = await getCurrentVendor();
   const isStaff = isConsoleStaffRole(profile?.role);
 
-  const businessName =
-    profile?.fullName?.trim() ||
-    vendor?.businessName ||
-    profile?.email?.split("@")[0] ||
-    "Data Console";
-  const username = vendor?.slug ?? profile?.email?.split("@")[0] ?? "agent";
+  const businessName = isStaff
+    ? profile?.fullName?.trim() ||
+      profile?.email?.split("@")[0] ||
+      (profile?.role === "ops" ? "Operations" : "Platform Admin")
+    : profile?.fullName?.trim() ||
+      vendor?.businessName ||
+      profile?.email?.split("@")[0] ||
+      "Data Console";
+
+  const username = isStaff
+    ? profile?.role === "ops"
+      ? "ops"
+      : "admin"
+    : (vendor?.slug ?? profile?.email?.split("@")[0] ?? "agent");
 
   return (
     <>
