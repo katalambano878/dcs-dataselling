@@ -22,6 +22,15 @@ export function formatConsoleData(mb: number): string {
   return `${n % 1 === 0 ? n : n.toFixed(1)}MB`;
 }
 
+export function parseConsoleAmount(value: string, unit: "gb" | "mb"): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const mb = unit === "gb" ? gbToMb(n) : +n.toFixed(2);
+  return mb > 0 ? mb : null;
+}
+
 export function generateConsoleReference(): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
