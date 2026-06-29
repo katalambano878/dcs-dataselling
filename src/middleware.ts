@@ -24,15 +24,28 @@ export async function middleware(request: NextRequest) {
   if (onConsoleHost) {
     const mainSite = process.env.NEXT_PUBLIC_SITE_URL ?? "https://dcselite.com";
 
-    if (MAIN_SITE_PREFIXES.some((p) => pathname.startsWith(p))) {
+    // Staff admin panel lives on the console subdomain at /admin
+    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+      const suffix = pathname.slice("/admin".length);
+      const url = request.nextUrl.clone();
+      url.pathname = `${CONSOLE_PATH_PREFIX}/admin${suffix}`;
+      return NextResponse.rewrite(url);
+    }
+
+    const mainSitePrefixes = MAIN_SITE_PREFIXES.filter((p) => p !== "/admin");
+    if (mainSitePrefixes.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL(`${pathname}${request.nextUrl.search}`, mainSite));
     }
 
     // Legacy /console/* or bad /console/vendor/* → clean console URLs.
     if (isLegacyConsolePrefixedPath(pathname)) {
       const suffix = pathname.slice(CONSOLE_PATH_PREFIX.length);
-      if (suffix.startsWith("/vendor") || suffix.startsWith("/admin")) {
+      if (suffix.startsWith("/vendor")) {
         return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
+      }
+      if (suffix.startsWith("/admin")) {
+        const publicAdmin = `/admin${suffix.slice("/admin".length)}`;
+        return NextResponse.redirect(new URL(`${publicAdmin}${request.nextUrl.search}`, request.url));
       }
       const publicPath = consoleInternalToPublicPath(pathname);
       if (publicPath) {

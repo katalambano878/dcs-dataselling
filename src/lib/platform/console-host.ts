@@ -44,6 +44,8 @@ const PUBLIC_TO_INTERNAL: Record<string, string> = {
   "/profile": `${CONSOLE_PATH_PREFIX}/profile`,
   "/support": `${CONSOLE_PATH_PREFIX}/support`,
   "/developer": `${CONSOLE_PATH_PREFIX}/api`,
+  "/admin": `${CONSOLE_PATH_PREFIX}/admin`,
+  "/admin/support": `${CONSOLE_PATH_PREFIX}/admin/support`,
 };
 
 const INTERNAL_TO_PUBLIC: Record<string, string> = {
@@ -54,7 +56,16 @@ const INTERNAL_TO_PUBLIC: Record<string, string> = {
   [`${CONSOLE_PATH_PREFIX}/profile`]: "/profile",
   [`${CONSOLE_PATH_PREFIX}/support`]: "/support",
   [`${CONSOLE_PATH_PREFIX}/api`]: "/developer",
+  [`${CONSOLE_PATH_PREFIX}/admin`]: "/admin",
+  [`${CONSOLE_PATH_PREFIX}/admin/support`]: "/admin/support",
 };
+
+/** Staff-only console admin paths (console.dcselite.com/admin). */
+export function consoleStaffNavHref(segment: "" | "support", onConsoleHost: boolean): string {
+  const path = segment ? `/admin/${segment}` : "/admin";
+  if (onConsoleHost) return path;
+  return `${CONSOLE_PATH_PREFIX}/admin${segment ? `/${segment}` : ""}`;
+}
 
 /** Home path after sign-in on the console subdomain. */
 export function getConsoleHomePath(): string {

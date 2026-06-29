@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { getPostLoginRedirect } from "@/lib/auth/onboarding";
 import { getConsoleHomePath, isConsoleHost } from "@/lib/platform/console-host";
+import { isConsoleStaffRole } from "@/lib/console/admin-access";
 import type { UserRole } from "@/types";
 
 export type AuthActionState = {
@@ -60,7 +61,8 @@ export async function signIn(
   const onConsole = isConsoleHost(host);
 
   if (onConsole) {
-    redirect(redirectTo ?? getConsoleHomePath());
+    if (redirectTo) redirect(redirectTo);
+    redirect(isConsoleStaffRole(role) ? "/admin" : getConsoleHomePath());
   }
 
   redirect(redirectTo ?? (await getPostLoginRedirect(user.id, role)));

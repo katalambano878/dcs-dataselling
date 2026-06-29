@@ -10,6 +10,7 @@ import {
   Menu,
   Monitor,
   Send,
+  Shield,
   User,
   Wallet,
   type LucideIcon,
@@ -17,7 +18,7 @@ import {
 import { useEffect, useState } from "react";
 import { signOut } from "@/app/auth/actions";
 import { DcsLogo } from "@/components/brand/dcs-logo";
-import { consoleNavHref } from "@/lib/platform/console-host";
+import { consoleNavHref, consoleStaffNavHref } from "@/lib/platform/console-host";
 import { SITE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ interface ConsoleShellProps {
   businessName: string;
   username: string;
   onConsoleHost?: boolean;
+  isStaff?: boolean;
   children: React.ReactNode;
 }
 
@@ -82,6 +84,10 @@ function pageTitleFromPath(pathname: string): string {
     "/console/support": "Support",
     "/developer": "API",
     "/console/api": "API",
+    "/admin": "Console admin",
+    "/console/admin": "Console admin",
+    "/admin/support": "Support tickets",
+    "/console/admin/support": "Support tickets",
   };
   return titles[pathname] ?? "Data Console";
 }
@@ -102,12 +108,14 @@ function ConsoleSidebarNav({
   businessName,
   username,
   onConsoleHost,
+  isStaff,
   onNavigate,
 }: {
   pathname: string;
   businessName: string;
   username: string;
   onConsoleHost: boolean;
+  isStaff?: boolean;
   onNavigate?: () => void;
 }) {
   return (
@@ -150,6 +158,44 @@ function ConsoleSidebarNav({
             </ul>
           </div>
         ))}
+
+        {isStaff && (
+          <div>
+            <p className="nav-section-label mb-2 px-3">Staff</p>
+            <ul className="space-y-0.5">
+              <li>
+                <Link
+                  href={consoleStaffNavHref("", onConsoleHost)}
+                  onClick={onNavigate}
+                  className={cn(
+                    "nav-link",
+                    (pathname === "/admin" ||
+                      pathname === "/console/admin" ||
+                      (pathname.startsWith("/admin") && !pathname.startsWith("/admin/support"))) &&
+                      "nav-link-active",
+                  )}
+                >
+                  <Shield className="nav-icon" />
+                  <span className="truncate">Console admin</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={consoleStaffNavHref("support", onConsoleHost)}
+                  onClick={onNavigate}
+                  className={cn(
+                    "nav-link",
+                    (pathname === "/admin/support" || pathname === "/console/admin/support") &&
+                      "nav-link-active",
+                  )}
+                >
+                  <LifeBuoy className="nav-icon" />
+                  <span className="truncate">Support tickets</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-white/6 p-3">
@@ -177,6 +223,7 @@ function ConsoleSidebar({
   businessName,
   username,
   onConsoleHost,
+  isStaff,
   onNavigate,
   className,
 }: {
@@ -184,6 +231,7 @@ function ConsoleSidebar({
   businessName: string;
   username: string;
   onConsoleHost: boolean;
+  isStaff?: boolean;
   onNavigate?: () => void;
   className?: string;
 }) {
@@ -207,6 +255,7 @@ function ConsoleSidebar({
         businessName={businessName}
         username={username}
         onConsoleHost={onConsoleHost}
+        isStaff={isStaff}
         onNavigate={onNavigate}
       />
     </aside>
@@ -217,6 +266,7 @@ export function ConsoleShell({
   businessName,
   username,
   onConsoleHost = false,
+  isStaff = false,
   children,
 }: ConsoleShellProps) {
   const pathname = usePathname();
@@ -245,6 +295,7 @@ export function ConsoleShell({
           businessName={businessName}
           username={username}
           onConsoleHost={onConsoleHost}
+          isStaff={isStaff}
         />
       </div>
 
@@ -296,6 +347,7 @@ export function ConsoleShell({
               businessName={businessName}
               username={username}
               onConsoleHost={onConsoleHost}
+              isStaff={isStaff}
               onNavigate={closeSidebar}
               className="h-full w-[min(15rem,85vw)]"
             />
