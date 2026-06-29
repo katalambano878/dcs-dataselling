@@ -16,6 +16,11 @@ import type { UserRole } from "@/types";
 export async function getPostLoginRedirect(userId: string, role: UserRole): Promise<string> {
   if (!hasSupabaseConfig()) return getDashboardHome(role);
 
+  // Platform staff keep admin home even when they also have a vendor row (e.g. console testing).
+  if (role === "admin" || role === "ops") {
+    return getDashboardHome(role);
+  }
+
   const service = createServiceClient();
 
   const { data: vendor } = await service
