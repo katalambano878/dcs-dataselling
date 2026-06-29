@@ -151,7 +151,7 @@ function ConsoleSidebarNav({
           href={SITE.url}
           className="mb-1 block rounded-lg px-3 py-1.5 text-xs font-medium text-white/55 hover:bg-white/5 hover:text-white"
         >
-          Open {SITE.shortName} marketplace
+          Vendor dashboard (GHS wallet)
         </Link>
         <form action={signOut}>
           <button

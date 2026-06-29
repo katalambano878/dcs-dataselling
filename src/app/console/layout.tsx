@@ -1,13 +1,15 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { Activity } from "lucide-react";
+import { Activity, Monitor, Store } from "lucide-react";
 import { Toaster } from "sonner";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { ConsoleStatusBanners } from "@/components/console/console-status-banners";
 import { getCurrentProfile, getCurrentVendor, getSessionUser } from "@/lib/auth/session";
-import { getOrCreateConsoleAccount } from "@/lib/console/account";
-import { ensureConsoleVendor, fetchConsoleProfileState } from "@/lib/console/profile";
+import { resolveConsoleAccess } from "@/lib/console/access";
+import { fetchConsoleProfileState } from "@/lib/console/profile";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
+import { SITE } from "@/lib/constants";
 import { consoleNavHref, getConsoleHomePath, isConsoleHost } from "@/lib/platform/console-host";
 
 export const dynamic = "force-dynamic";
@@ -29,24 +31,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const sessionUser = await getSessionUser();
   if (!sessionUser) redirect(`/auth/login?next=${encodeURIComponent(loginNext)}`);
 
-  const profile = await getCurrentProfile();
-  let vendor = await getCurrentVendor();
-  if (!vendor) {
-    vendor = await ensureConsoleVendor(
-      sessionUser.id,
-      profile?.email ?? sessionUser.email ?? "",
-      profile?.fullName ?? null,
-    );
-  }
-  if (!vendor) redirect(`/auth/login?next=${encodeURIComponent(loginNext)}`);
+  void getCurrentProfile();
 
-  const account = await getOrCreateConsoleAccount(vendor.id);
+  const vendor = await getCurrentVendor();
+  const access = vendor ? await resolveConsoleAccess(sessionUser.id) : null;
   const profileState = await fetchConsoleProfileState(sessionUser.id);
-  const username = vendor.slug;
 
-  const shell = (content: React.ReactNode) => (
+  const shell = (content: React.ReactNode, businessName = "Data Console", username = "agent") => (
     <>
-      <ConsoleShell businessName={vendor.businessName} username={username} onConsoleHost={onConsoleHost}>
+      <ConsoleShell businessName={businessName} username={username} onConsoleHost={onConsoleHost}>
         <div className="admin-page-content mx-auto max-w-6xl px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
           {content}
         </div>
@@ -55,7 +48,34 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     </>
   );
 
-  if (vendor.status === "suspended" || vendor.status === "rejected") {
+  if (!vendor || !access) {
+    return shell(
+      <div className="admin-empty-state">
+        <div className="admin-empty-state-icon is-warning">
+          <Monitor className="h-5 w-5" />
+        </div>
+        <h3 className="admin-empty-state-title">Data console not linked</h3>
+        <p className="admin-empty-state-desc">
+          The data console (GB balance at console.dcselite.com) is separate from the main-site vendor
+          dashboard (GHS wallet and storefront). Use the same login once an admin enables your console
+          account, or register as an agent on {SITE.shortName} first.
+        </p>
+        <div className="admin-empty-state-action flex flex-wrap justify-center gap-2">
+          <Link href={`${SITE.url}/create-store`} className="susu-btn-gold inline-flex items-center gap-1.5">
+            <Store className="h-3.5 w-3.5" />
+            Register on {SITE.shortName}
+          </Link>
+          <Link href={SITE.url} className="susu-btn-ghost">
+            Main site home
+          </Link>
+        </div>
+      </div>,
+    );
+  }
+
+  const { vendor: agent, account } = access;
+
+  if (agent.status === "suspended" || agent.status === "rejected") {
     return shell(
       <div className="admin-empty-state">
         <div className="admin-empty-state-icon is-warning">
@@ -64,6 +84,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         <h3 className="admin-empty-state-title">Account not active</h3>
         <p className="admin-empty-state-desc">Contact support to restore console access.</p>
       </div>,
+      agent.businessName,
+      agent.slug,
     );
   }
 
@@ -76,5 +98,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       />
       {children}
     </>,
+    agent.businessName,
+    agent.slug,
   );
 }

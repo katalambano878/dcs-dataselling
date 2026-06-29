@@ -61,6 +61,7 @@ type NavItem = {
   icon: LucideIcon;
   match: (pathname: string) => boolean;
   badge?: string | number;
+  external?: boolean;
 };
 
 type NavSection = {
@@ -108,7 +109,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "Extra services",
     items: [
       { href: "/vendor/dashboard/developer", label: "Developer", icon: Code, match: (p) => p.startsWith("/vendor/dashboard/developer") },
-      { href: SITE.consoleUrl, label: "Data Console", icon: Monitor, match: () => false },
+      { href: SITE.consoleUrl, label: "Data Console (GB)", icon: Monitor, match: () => false, external: true },
       { href: "/vendor/dashboard/mtn-afa", label: "MTN AFA", icon: Shield, match: (p) => p.startsWith("/vendor/dashboard/mtn-afa") },
       { href: "/vendor/dashboard/profile", label: "Profile", icon: User, match: (p) => p.startsWith("/vendor/dashboard/profile") },
     ],
@@ -197,19 +198,29 @@ function AgentSidebarNav({
               )}
               {section.items.map((item) => {
                 const active = item.match(pathname);
+                const className = cn("nav-link", active && "nav-link-active");
                 return (
                   <li key={item.href + item.label}>
-                    <Link
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={cn("nav-link", active && "nav-link-active")}
-                    >
-                      <item.icon className="nav-icon" />
-                      <span className="truncate">{item.label}</span>
-                      {item.badge != null && (
-                        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-rose-500" />
-                      )}
-                    </Link>
+                    {item.external ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onNavigate}
+                        className={className}
+                      >
+                        <item.icon className="nav-icon" />
+                        <span className="truncate">{item.label}</span>
+                      </a>
+                    ) : (
+                      <Link href={item.href} onClick={onNavigate} className={className}>
+                        <item.icon className="nav-icon" />
+                        <span className="truncate">{item.label}</span>
+                        {item.badge != null && (
+                          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        )}
+                      </Link>
+                    )}
                   </li>
                 );
               })}

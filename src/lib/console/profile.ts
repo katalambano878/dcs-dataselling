@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getCurrentVendor } from "@/lib/auth/session";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 
 /** Normalize a Ghana phone to local 0XXXXXXXXX form, or null if invalid. */
@@ -61,44 +60,4 @@ export async function fetchConsoleProfileState(userId: string): Promise<ConsoleP
       phone: row?.phone,
     }),
   };
-}
-
-/** Link signed-in user to a vendor row so console shares the same login as dcselite.com. */
-export async function ensureConsoleVendor(userId: string, email: string, fullName: string | null) {
-  if (!hasSupabaseConfig()) return null;
-
-  const existing = await getCurrentVendor();
-  if (existing) return existing;
-
-  const service = createServiceClient();
-  const slug = `agent-${userId.slice(0, 8)}`;
-  const businessName = fullName?.trim() || email.split("@")[0] || "Console Agent";
-
-  const { data: inserted, error } = await service
-    .from("vendors")
-    .insert({
-      user_id: userId,
-      slug,
-      business_name: businessName,
-      api_only: true,
-      status: "approved",
-      verified: false,
-      kyc_status: "not_started",
-      tier: "starter",
-    })
-    .select(
-      "id, slug, business_name, tagline, status, kyc_status, tier, theme_color, emoji, banner_url, whatsapp_number, momo_number, referral_code, verified, rating, total_orders, fulfilment_minutes, commission_rate, featured, setup_fee_paid_at, api_only, created_at",
-    )
-    .single();
-
-  if (error || !inserted) return null;
-
-  await service.from("profiles").update({ role: "vendor" }).eq("id", userId).eq("role", "customer");
-
-  await service.from("vendor_console_accounts").upsert(
-    { vendor_id: (inserted as { id: string }).id, enabled: false, balance_mb: 0 },
-    { onConflict: "vendor_id", ignoreDuplicates: true },
-  );
-
-  return getCurrentVendor();
 }

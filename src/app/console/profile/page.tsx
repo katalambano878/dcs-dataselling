@@ -24,8 +24,8 @@ export default async function ConsoleProfilePage() {
   return (
     <AdminPageRoot>
       <AdminPageIntro
-        badge="Account"
-        description="Same login as dcselite.com. Keep your agent details up to date here."
+        badge="Console account"
+        description="Same login as dcselite.com. This profile is for the data console only — not the vendor dashboard (GHS wallet / storefront)."
         meta={`@${vendor.slug}`}
       />
       <ConsoleProfileForm

@@ -92,8 +92,8 @@ export function ConsoleProfileForm({
       title="User Profile"
       description={
         profileComplete
-          ? "Update your contact details. These apply across dcselite.com and the data console."
-          : "Complete your profile before sending bundles from the console."
+          ? "Contact details for your data console account (GB balance). Separate from the vendor dashboard wallet."
+          : "Complete your console profile before sending bundles. Same login as dcselite.com."
       }
       icon={User}
     >

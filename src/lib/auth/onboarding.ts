@@ -16,7 +16,7 @@ import type { UserRole } from "@/types";
 export async function getPostLoginRedirect(userId: string, role: UserRole): Promise<string> {
   if (!hasSupabaseConfig()) return getDashboardHome(role);
 
-  // Platform staff keep admin home even when they also have a vendor row (e.g. console testing).
+  // Platform staff use the admin panel — never the vendor dashboard or data console.
   if (role === "admin" || role === "ops") {
     return getDashboardHome(role);
   }
@@ -25,11 +25,16 @@ export async function getPostLoginRedirect(userId: string, role: UserRole): Prom
 
   const { data: vendor } = await service
     .from("vendors")
-    .select("id")
+    .select("id, api_only, setup_fee_paid_at")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (vendor) return "/vendor/dashboard";
+  if (vendor) {
+    const row = vendor as { api_only: boolean | null; setup_fee_paid_at: string | null };
+    const isStoreAgent = Boolean(row.setup_fee_paid_at) || !row.api_only;
+    // Main-site vendor dashboard only — not the data console (console.dcselite.com).
+    if (isStoreAgent) return "/vendor/dashboard";
+  }
 
   await reconcileUserSetupPayments(userId);
 

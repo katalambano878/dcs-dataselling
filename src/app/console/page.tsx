@@ -45,7 +45,9 @@ export default async function ConsoleDashboardPage() {
               <span className="chip-badge">Data console</span>
               <span className="live-badge">{statusBadge}</span>
             </div>
-            <p className="mt-1.5 text-xs text-slate-500 sm:text-[13px]">{statusHint}</p>
+            <p className="mt-1.5 text-xs text-slate-500 sm:text-[13px]">
+              {statusHint} This is the data console — not the vendor dashboard on dcselite.com.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {!profileComplete ? (

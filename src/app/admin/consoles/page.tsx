@@ -18,7 +18,7 @@ export default async function AdminConsolesPage() {
     <AdminPageRoot>
       <AdminPageIntro
         badge="Data consoles"
-        description="Allocate gigabyte balances to agents for console.dcselite.com — separate from GHS wallet top-ups."
+        description="Allocate GB to store agents for console.dcselite.com. Separate from GHS wallet top-ups on the vendor dashboard."
         meta={`${vendors.length} agents · ${active} consoles active · ${getConsolePublicUrl()}`}
       />
       <AdminConsoleBoard vendors={vendors} />
