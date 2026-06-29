@@ -1,4 +1,4 @@
-/** BestPay-style: 1 GB = 1000 MB (decimal), not 1024. */
+/** 1 GB = 1000 MB (decimal), not 1024. */
 export const MB_PER_GB = 1000;
 
 export function gbToMb(gb: number): number {

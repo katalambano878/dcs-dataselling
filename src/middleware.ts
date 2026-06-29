@@ -54,7 +54,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
     }
 
-    // BestPay-style clean paths: console.dcselite.com/send → internal /console/send
+    // Clean paths: console.dcselite.com/send → internal /console/send
     const internal = consolePublicToInternalPath(pathname);
     if (internal) {
       const url = request.nextUrl.clone();

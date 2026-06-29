@@ -25,7 +25,7 @@ export function isConsoleHost(host: string | null | undefined): boolean {
 /** Internal Next.js route prefix for console UI pages. */
 export const CONSOLE_PATH_PREFIX = "/console";
 
-/** Clean public paths on console.dcselite.com (BestPay-style, no /console prefix). */
+/** Clean public paths on console.dcselite.com (no /console prefix). */
 export const CONSOLE_PUBLIC_SEGMENTS = [
   "",
   "send",

@@ -26,7 +26,7 @@ const PERKS = [
 const CONSOLE_PERKS = [
   { icon: Zap, text: "Send bundles from your GB / MB balance" },
   { icon: Package, text: "Separate from the main-site GHS wallet" },
-  { icon: ShieldCheck, text: "BestPay-style agent data console" },
+  { icon: ShieldCheck, text: "Dedicated agent data console" },
 ] as const;
 
 export default async function LoginPage({
