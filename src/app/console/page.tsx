@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Activity, History, Send } from "lucide-react";
-import { AdminPageRoot, AdminStatGrid, AdminStatTile } from "@/components/admin";
+import { History, Send } from "lucide-react";
+import { AdminPageRoot } from "@/components/admin";
+import { ConsoleDashboardLive } from "@/components/console/console-dashboard-live";
 import { getCurrentVendor, getSessionUser } from "@/lib/auth/session";
 import { getOrCreateConsoleAccount } from "@/lib/console/account";
+import { fetchConsolePricingForVendor } from "@/lib/console/pricing";
 import { fetchConsoleProfileState } from "@/lib/console/profile";
+import { fetchConsoleDashboardStats } from "@/lib/console/stats";
 import { consoleNavHref, isConsoleHost } from "@/lib/platform/console-host";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +17,13 @@ export default async function ConsoleDashboardPage() {
   const sessionUser = await getSessionUser();
   const account = vendor ? await getOrCreateConsoleAccount(vendor.id) : null;
   const profileState = sessionUser ? await fetchConsoleProfileState(sessionUser.id) : null;
+  const [stats, pricing] = vendor
+    ? await Promise.all([
+        fetchConsoleDashboardStats(vendor.id),
+        fetchConsolePricingForVendor(vendor.id),
+      ])
+    : [null, null];
+
   const host = (await headers()).get("host");
   const onConsole = isConsoleHost(host);
   const sendHref = consoleNavHref("send", onConsole);
@@ -36,6 +46,14 @@ export default async function ConsoleDashboardPage() {
       ? "Your login works on both sites. Admin allocates data credit from Admin → Data Consoles."
       : "Send bundles from your allocated data balance. Separate from the main-site GHS wallet.";
 
+  const initialStats = stats ?? {
+    balanceMb: account?.balanceMb ?? 0,
+    totalSends: account?.totalSends ?? 0,
+    sentTodayCount: 0,
+    sentTodayMb: 0,
+    enabled: account?.enabled ?? false,
+  };
+
   return (
     <AdminPageRoot>
       <section className="welcome-card">
@@ -46,7 +64,7 @@ export default async function ConsoleDashboardPage() {
               <span className="live-badge">{statusBadge}</span>
             </div>
             <p className="mt-1.5 text-xs text-slate-500 sm:text-[13px]">
-              {statusHint} This is the data console — not the vendor dashboard on dcselite.com.
+              {statusHint} Stats refresh every 60 seconds.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -69,15 +87,12 @@ export default async function ConsoleDashboardPage() {
         </div>
       </section>
 
-      <AdminStatGrid className="max-w-md lg:grid-cols-1">
-        <AdminStatTile
-          icon={<Activity className="h-4 w-4" />}
-          tone="sky"
-          label="Transactions made"
-          value={String(account?.totalSends ?? 0)}
-          hint="Completed console sends"
-        />
-      </AdminStatGrid>
+      <ConsoleDashboardLive
+        initialStats={initialStats}
+        initialPricing={
+          pricing ? { name: pricing.name, priceLabel: pricing.priceLabel } : null
+        }
+      />
     </AdminPageRoot>
   );
 }

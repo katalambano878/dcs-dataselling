@@ -1,86 +1,54 @@
-import { format } from "date-fns";
-import { History } from "lucide-react";
-import {
-  AdminDataTable,
-  AdminEmptyState,
-  AdminPageIntro,
-  AdminPageRoot,
-  AdminSection,
-  AdminTableBody,
-  AdminTableHead,
-  AdminTd,
-  AdminTh,
-  AdminTr,
-} from "@/components/admin";
-import { NetworkBadge } from "@/components/marketplace/network-badge";
-import { Badge } from "@/components/ui/badge";
+import { headers } from "next/headers";
+import { AdminPageIntro, AdminPageRoot } from "@/components/admin";
+import { ConsoleTransactionsTable } from "@/components/console/console-transactions-table";
 import { getCurrentVendor } from "@/lib/auth/session";
-import { fetchConsoleSends } from "@/lib/console/send";
-import { formatConsoleData } from "@/lib/console/units";
-import { formatPhone } from "@/lib/format";
+import {
+  fetchConsoleSendsPaginated,
+  type ConsoleSendStatusFilter,
+} from "@/lib/console/send";
+import { isConsoleHost } from "@/lib/platform/console-host";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  completed: "success",
-  processing: "warning",
-  pending: "neutral",
-  failed: "danger",
-  refunded: "neutral",
-};
+function parseStatus(raw: string | undefined): ConsoleSendStatusFilter {
+  if (raw === "completed" || raw === "processing" || raw === "pending" || raw === "failed") {
+    return raw === "pending" ? "processing" : raw;
+  }
+  return "all";
+}
 
-export default async function ConsoleTransactionsPage() {
+export default async function ConsoleTransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; status?: string }>;
+}) {
+  const sp = await searchParams;
+  const page = Math.max(1, Number(sp.page) || 1);
+  const status = parseStatus(sp.status);
   const vendor = await getCurrentVendor();
-  const rows = vendor ? await fetchConsoleSends(vendor.id, 100) : [];
+  const host = (await headers()).get("host");
+  const onConsole = isConsoleHost(host);
+
+  const result = vendor
+    ? await fetchConsoleSendsPaginated(vendor.id, { page, pageSize: 20, status })
+    : { rows: [], total: 0, page: 1, pageSize: 20 };
 
   return (
     <AdminPageRoot>
       <AdminPageIntro
         badge="Send history"
         description="Outbound bundle sends debited from your console data balance."
-        meta={`${rows.length} record${rows.length === 1 ? "" : "s"}`}
+        meta={`${result.total} record${result.total === 1 ? "" : "s"}`}
       />
 
-      <AdminSection title="Transaction History" icon={History}>
-        {rows.length === 0 ? (
-          <AdminEmptyState
-            icon={History}
-            title="No transactions yet"
-            description="Completed sends will appear here once you dispatch bundles."
-          />
-        ) : (
-          <AdminDataTable>
-            <AdminTableHead>
-              <AdminTh>Receiver</AdminTh>
-              <AdminTh>Network</AdminTh>
-              <AdminTh>Amount</AdminTh>
-              <AdminTh>Date</AdminTh>
-              <AdminTh>Status</AdminTh>
-              <AdminTh>Reference</AdminTh>
-              <AdminTh>Batch ID</AdminTh>
-            </AdminTableHead>
-            <AdminTableBody>
-              {rows.map((row) => (
-                <AdminTr key={row.id}>
-                  <AdminTd>{formatPhone(row.recipientPhone)}</AdminTd>
-                  <AdminTd>
-                    <NetworkBadge network={row.network} size="xs" />
-                  </AdminTd>
-                  <AdminTd className="font-medium">{formatConsoleData(row.amountMb)}</AdminTd>
-                  <AdminTd className="whitespace-nowrap text-white/55">
-                    {format(new Date(row.createdAt), "yyyy-MM-dd HH:mm")}
-                  </AdminTd>
-                  <AdminTd>
-                    <Badge variant={STATUS_VARIANT[row.status] ?? "neutral"}>{row.status}</Badge>
-                  </AdminTd>
-                  <AdminTd className="font-mono text-xs">{row.reference}</AdminTd>
-                  <AdminTd className="text-white/55">{row.batchId ?? "—"}</AdminTd>
-                </AdminTr>
-              ))}
-            </AdminTableBody>
-          </AdminDataTable>
-        )}
-      </AdminSection>
+      <ConsoleTransactionsTable
+        rows={result.rows}
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        status={status}
+        onConsoleHost={onConsole}
+      />
     </AdminPageRoot>
   );
 }

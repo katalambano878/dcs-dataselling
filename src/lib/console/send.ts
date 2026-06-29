@@ -8,6 +8,7 @@ import {
   debitConsoleBalance,
   getOrCreateConsoleAccount,
 } from "@/lib/console/account";
+import { maybeNotifyConsoleLowBalance } from "@/lib/console/notify";
 import { generateConsoleReference } from "@/lib/console/units";
 
 export interface ConsoleSendRow {
@@ -76,6 +77,11 @@ export async function sendConsoleBundle(params: {
 
   const debit = await debitConsoleBalance(params.vendorId, params.amountMb);
   if (!debit.ok) return { ok: false, error: debit.error, code: "insufficient_balance" };
+
+  void maybeNotifyConsoleLowBalance({
+    vendorId: params.vendorId,
+    balanceMb: debit.balanceAfterMb,
+  });
 
   const { data: inserted, error: insertErr } = await service
     .from("console_send_ledger")
@@ -191,21 +197,58 @@ function mapSendRow(vendorId: string, row: Record<string, unknown>): ConsoleSend
   };
 }
 
+export interface PaginatedConsoleSends {
+  rows: ConsoleSendRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type ConsoleSendStatusFilter = "all" | "completed" | "processing" | "pending" | "failed";
+
 export async function fetchConsoleSends(vendorId: string, limit = 50): Promise<ConsoleSendRow[]> {
-  if (!hasSupabaseConfig()) return [];
+  const result = await fetchConsoleSendsPaginated(vendorId, { page: 1, pageSize: limit });
+  return result.rows;
+}
+
+export async function fetchConsoleSendsPaginated(
+  vendorId: string,
+  opts: { page?: number; pageSize?: number; status?: ConsoleSendStatusFilter } = {},
+): Promise<PaginatedConsoleSends> {
+  if (!hasSupabaseConfig()) {
+    return { rows: [], total: 0, page: 1, pageSize: 20 };
+  }
+
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(50, Math.max(10, opts.pageSize ?? 20));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
   const service = createServiceClient();
-  const { data } = await service
+
+  let query = service
     .from("console_send_ledger")
     .select(
       "id, vendor_id, recipient_phone, network, amount_mb, balance_after_mb, reference, batch_id, status, supplier, supplier_reference, supplier_status, supplier_error, created_at, completed_at",
+      { count: "exact" },
     )
-    .eq("vendor_id", vendorId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .eq("vendor_id", vendorId);
 
-  return (data ?? []).map((row) =>
-    mapSendRow(vendorId, row as Record<string, unknown>),
-  );
+  if (opts.status && opts.status !== "all") {
+    query = query.eq("status", opts.status);
+  }
+
+  const { data, count, error } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) return { rows: [], total: 0, page, pageSize };
+
+  return {
+    rows: (data ?? []).map((row) => mapSendRow(vendorId, row as Record<string, unknown>)),
+    total: count ?? 0,
+    page,
+    pageSize,
+  };
 }
 
 export interface ConsoleCreditRow {
@@ -218,17 +261,44 @@ export interface ConsoleCreditRow {
   createdAt: string;
 }
 
+export interface PaginatedConsoleCredits {
+  rows: ConsoleCreditRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export async function fetchConsoleCredits(vendorId: string, limit = 50): Promise<ConsoleCreditRow[]> {
-  if (!hasSupabaseConfig()) return [];
+  const result = await fetchConsoleCreditsPaginated(vendorId, { page: 1, pageSize: limit });
+  return result.rows;
+}
+
+export async function fetchConsoleCreditsPaginated(
+  vendorId: string,
+  opts: { page?: number; pageSize?: number } = {},
+): Promise<PaginatedConsoleCredits> {
+  if (!hasSupabaseConfig()) {
+    return { rows: [], total: 0, page: 1, pageSize: 20 };
+  }
+
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(50, Math.max(10, opts.pageSize ?? 20));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
   const service = createServiceClient();
-  const { data } = await service
+
+  const { data, count, error } = await service
     .from("console_credit_ledger")
-    .select("id, vendor_id, amount_mb, balance_after_mb, reference, note, created_at")
+    .select("id, vendor_id, amount_mb, balance_after_mb, reference, note, created_at", {
+      count: "exact",
+    })
     .eq("vendor_id", vendorId)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
-  return (data ?? []).map((row) => {
+  if (error) return { rows: [], total: 0, page, pageSize };
+
+  const rows = (data ?? []).map((row) => {
     const r = row as {
       id: string;
       vendor_id: string;
@@ -248,4 +318,6 @@ export async function fetchConsoleCredits(vendorId: string, limit = 50): Promise
       createdAt: r.created_at,
     };
   });
+
+  return { rows, total: count ?? 0, page, pageSize };
 }

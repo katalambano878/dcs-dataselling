@@ -6,6 +6,7 @@ import {
   Code,
   History,
   LayoutGrid,
+  LifeBuoy,
   Menu,
   Monitor,
   Send,
@@ -20,7 +21,7 @@ import { consoleNavHref } from "@/lib/platform/console-host";
 import { SITE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-type NavSegment = "" | "send" | "transactions" | "credits" | "profile" | "developer";
+type NavSegment = "" | "send" | "transactions" | "credits" | "profile" | "support" | "developer";
 
 type NavItem = {
   segment: NavSegment;
@@ -51,7 +52,10 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Misc",
-    items: [{ segment: "developer", label: "API", icon: Code }],
+    items: [
+      { segment: "support", label: "Support", icon: LifeBuoy },
+      { segment: "developer", label: "API", icon: Code },
+    ],
   },
 ];
 
@@ -74,6 +78,8 @@ function pageTitleFromPath(pathname: string): string {
     "/console/credits": "Credit History",
     "/profile": "User Profile",
     "/console/profile": "User Profile",
+    "/support": "Support",
+    "/console/support": "Support",
     "/developer": "API",
     "/console/api": "API",
   };

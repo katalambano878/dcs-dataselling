@@ -32,6 +32,7 @@ export const CONSOLE_PUBLIC_SEGMENTS = [
   "transactions",
   "credits",
   "profile",
+  "support",
   "developer",
 ] as const;
 
@@ -41,6 +42,7 @@ const PUBLIC_TO_INTERNAL: Record<string, string> = {
   "/transactions": `${CONSOLE_PATH_PREFIX}/transactions`,
   "/credits": `${CONSOLE_PATH_PREFIX}/credits`,
   "/profile": `${CONSOLE_PATH_PREFIX}/profile`,
+  "/support": `${CONSOLE_PATH_PREFIX}/support`,
   "/developer": `${CONSOLE_PATH_PREFIX}/api`,
 };
 
@@ -50,6 +52,7 @@ const INTERNAL_TO_PUBLIC: Record<string, string> = {
   [`${CONSOLE_PATH_PREFIX}/transactions`]: "/transactions",
   [`${CONSOLE_PATH_PREFIX}/credits`]: "/credits",
   [`${CONSOLE_PATH_PREFIX}/profile`]: "/profile",
+  [`${CONSOLE_PATH_PREFIX}/support`]: "/support",
   [`${CONSOLE_PATH_PREFIX}/api`]: "/developer",
 };
 

@@ -53,6 +53,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     reference: result.send.reference,
+    supplier_reference: result.send.supplierReference,
     status: result.send.status,
     amount_mb: result.send.amountMb,
     balance_after_mb: result.send.balanceAfterMb,

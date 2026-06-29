@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { assertAdminApi } from "@/lib/auth/admin-api";
 import { allocateConsoleCredit, setConsoleEnabled } from "@/lib/console/account";
+import { setConsolePricingTier } from "@/lib/console/pricing";
 import { gbToMb } from "@/lib/console/units";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 
@@ -16,6 +17,11 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("toggle"),
     vendor_id: z.string().uuid(),
     enabled: z.boolean(),
+  }),
+  z.object({
+    action: z.literal("set_tier"),
+    vendor_id: z.string().uuid(),
+    tier_id: z.string().uuid().nullable(),
   }),
 ]);
 
@@ -40,6 +46,12 @@ export async function POST(request: Request) {
     const ok = await setConsoleEnabled(body.vendor_id, body.enabled);
     if (!ok) return NextResponse.json({ error: "Failed to update console" }, { status: 400 });
     return NextResponse.json({ ok: true, enabled: body.enabled });
+  }
+
+  if (body.action === "set_tier") {
+    const ok = await setConsolePricingTier(body.vendor_id, body.tier_id);
+    if (!ok) return NextResponse.json({ error: "Failed to set pricing tier" }, { status: 400 });
+    return NextResponse.json({ ok: true, tier_id: body.tier_id });
   }
 
   const amountMb = gbToMb(body.amount_gb);

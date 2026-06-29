@@ -16,14 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AdminConsoleVendorRow } from "@/lib/data/admin-console";
+import type { ConsolePricingTier } from "@/lib/console/pricing";
 import { formatConsoleData, gbToMb } from "@/lib/console/units";
 import { getConsolePublicUrl } from "@/lib/platform/console-host";
 
 interface Props {
   vendors: AdminConsoleVendorRow[];
+  tiers: ConsolePricingTier[];
 }
 
-export function AdminConsoleBoard({ vendors: initial }: Props) {
+export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -52,6 +54,25 @@ export function AdminConsoleBoard({ vendors: initial }: Props) {
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed");
       toast.success(enabled ? "Console enabled" : "Console disabled");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function setTier(vendorId: string, tierId: string | null) {
+    setPending(`tier-${vendorId}`);
+    try {
+      const res = await fetch("/api/admin/console", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_tier", vendor_id: vendorId, tier_id: tierId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      toast.success("Pricing tier updated");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -159,6 +180,7 @@ export function AdminConsoleBoard({ vendors: initial }: Props) {
             <AdminTh>Status</AdminTh>
             <AdminTh>Console</AdminTh>
             <AdminTh>Balance</AdminTh>
+            <AdminTh>Tier</AdminTh>
             <AdminTh>Sends</AdminTh>
             <AdminTh>Actions</AdminTh>
           </AdminTableHead>
@@ -176,6 +198,23 @@ export function AdminConsoleBoard({ vendors: initial }: Props) {
                   </Badge>
                 </td>
                 <td className="admin-table-td font-semibold">{formatConsoleData(row.balanceMb)}</td>
+                <td className="admin-table-td">
+                  <select
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    value={row.pricingTierId ?? ""}
+                    disabled={pending === `tier-${row.vendorId}`}
+                    onChange={(e) =>
+                      void setTier(row.vendorId, e.target.value ? e.target.value : null)
+                    }
+                  >
+                    <option value="">Default</option>
+                    {tiers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.priceLabel})
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td className="admin-table-td">{row.totalSends}</td>
                 <td className="admin-table-td">
                   <div className="flex flex-wrap gap-2">

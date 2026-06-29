@@ -31,9 +31,16 @@ export function ConsoleSendForm({ balanceMb }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ network, recipient_phone: phone, amount_mb: amountMb }),
       });
-      const data = (await res.json()) as { error?: string; reference?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        reference?: string;
+        supplier_reference?: string | null;
+      };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
-      toast.success(`Bundle sent — ref ${data.reference ?? ""}`);
+      const refLine = data.supplier_reference
+        ? ` — supplier ${data.supplier_reference}`
+        : "";
+      toast.success(`Bundle sent — ref ${data.reference ?? ""}${refLine}`);
       setPhone("");
       router.refresh();
     } catch (err) {

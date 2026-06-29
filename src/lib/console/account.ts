@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { notifyConsoleCreditLoaded } from "@/lib/console/notify";
 import { generateConsoleCreditReference } from "@/lib/console/units";
 
 export interface VendorConsoleAccount {
@@ -120,6 +121,12 @@ export async function allocateConsoleCredit(params: {
     .eq("vendor_id", params.vendorId);
 
   if (updErr) return { ok: false, error: updErr.message };
+
+  void notifyConsoleCreditLoaded({
+    vendorId: params.vendorId,
+    amountMb: params.amountMb,
+    balanceAfterMb: next,
+  });
 
   return { ok: true, amountMb: params.amountMb, balanceAfterMb: next, reference };
 }
