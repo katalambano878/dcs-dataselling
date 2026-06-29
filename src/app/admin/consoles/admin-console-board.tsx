@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import type { AdminConsoleVendorRow } from "@/lib/data/admin-console";
 import type { ConsolePricingTier } from "@/lib/console/pricing";
 import { formatConsoleData, gbToMb } from "@/lib/console/units";
-import { getConsolePublicUrl } from "@/lib/platform/console-host";
 
 interface Props {
   vendors: AdminConsoleVendorRow[];
@@ -118,11 +117,7 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
   }
 
   return (
-    <AdminSection
-      title="Agent data consoles"
-      description={`BestPay-style GB/MB balances on ${getConsolePublicUrl()}. Separate from the GHS agent wallet on the main site.`}
-      icon={Monitor}
-    >
+    <AdminSection title="Agent data consoles" icon={Monitor}>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="min-w-[200px] flex-1 text-sm">
           Search agents
