@@ -19,7 +19,7 @@ export default async function ConsoleAdminPage() {
         description="Manage agent data consoles — allocate GB, enable accounts, and set pricing tiers."
         meta={`${vendors.length} agents · ${active} active`}
       />
-      <AdminConsoleBoard vendors={vendors} tiers={tiers} />
+      <AdminConsoleBoard vendors={vendors} tiers={tiers} variant="vault" />
     </AdminPageRoot>
   );
 }

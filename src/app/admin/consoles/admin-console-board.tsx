@@ -18,13 +18,16 @@ import { Input } from "@/components/ui/input";
 import type { AdminConsoleVendorRow } from "@/lib/data/admin-console";
 import type { ConsolePricingTier } from "@/lib/console/pricing";
 import { formatConsoleData, gbToMb } from "@/lib/console/units";
+import { cn } from "@/lib/utils";
 
 interface Props {
   vendors: AdminConsoleVendorRow[];
   tiers: ConsolePricingTier[];
+  variant?: "default" | "vault";
 }
 
-export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
+export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default" }: Props) {
+  const vault = variant === "vault";
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -119,10 +122,13 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
   return (
     <AdminSection title="Agent data consoles" icon={Monitor}>
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <label className="min-w-[200px] flex-1 text-sm">
+        <label className={cn("min-w-[200px] flex-1 text-sm", vault && "text-slate-200")}>
           Search agents
           <Input
-            className="mt-1 h-9"
+            className={cn(
+              "mt-1 h-9",
+              vault && "border-white/10 bg-white/5 text-white placeholder:text-white/40",
+            )}
             placeholder="Business name or slug…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -131,25 +137,43 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
       </div>
 
       {allocVendor && (
-        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-sm font-semibold text-blue-900">
+        <div
+          className={cn(
+            "mb-4 rounded-xl border p-4",
+            vault
+              ? "border-white/10 bg-white/5"
+              : "border-blue-200 bg-blue-50",
+          )}
+        >
+          <p
+            className={cn(
+              "text-sm font-semibold",
+              vault ? "text-white" : "text-blue-900",
+            )}
+          >
             Allocate data credit — {initial.find((v) => v.vendorId === allocVendor)?.businessName}
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
+            <label className={cn("text-sm", vault && "text-slate-200")}>
               Amount (GB)
               <Input
                 type="number"
                 step="1"
-                className="mt-1 h-9 w-32"
+                className={cn(
+                  "mt-1 h-9 w-32",
+                  vault && "border-white/10 bg-black/20 text-white",
+                )}
                 value={amountGb}
                 onChange={(e) => setAmountGb(e.target.value)}
               />
             </label>
-            <label className="min-w-[200px] flex-1 text-sm">
+            <label className={cn("min-w-[200px] flex-1 text-sm", vault && "text-slate-200")}>
               Note (optional)
               <Input
-                className="mt-1 h-9"
+                className={cn(
+                  "mt-1 h-9",
+                  vault && "border-white/10 bg-black/20 text-white placeholder:text-white/40",
+                )}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. March iShare pool"
@@ -162,7 +186,9 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
               Cancel
             </Button>
           </div>
-          <p className="mt-2 text-xs text-blue-800">1 GB = 1000 MB (decimal, matching BestPay).</p>
+          <p className={cn("mt-2 text-xs", vault ? "text-white/55" : "text-blue-800")}>
+            1 GB = 1000 MB (decimal).
+          </p>
         </div>
       )}
 
@@ -184,7 +210,9 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
               <tr key={row.vendorId} className="admin-table-tr">
                 <td className="admin-table-td">
                   <p className="font-medium">{row.businessName}</p>
-                  <p className="text-xs text-muted-foreground">@{row.slug}</p>
+                  <p className={cn("text-xs", vault ? "text-white/50" : "text-muted-foreground")}>
+                    @{row.slug}
+                  </p>
                 </td>
                 <td className="admin-table-td capitalize">{row.status}</td>
                 <td className="admin-table-td">
@@ -195,7 +223,12 @@ export function AdminConsoleBoard({ vendors: initial, tiers }: Props) {
                 <td className="admin-table-td font-semibold">{formatConsoleData(row.balanceMb)}</td>
                 <td className="admin-table-td">
                   <select
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    className={cn(
+                      "h-8 rounded-md border px-2 text-xs",
+                      vault
+                        ? "border-white/10 bg-white/5 text-white"
+                        : "border-input bg-background",
+                    )}
                     value={row.pricingTierId ?? ""}
                     disabled={pending === `tier-${row.vendorId}`}
                     onChange={(e) =>
