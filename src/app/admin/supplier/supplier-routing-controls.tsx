@@ -14,6 +14,7 @@ const NETWORK_SUPPLIER_OPTIONS: Array<{ id: NetworkSupplierId; label: string }> 
   { id: "skanka5", label: "Skanka5" },
   { id: "successbizhub", label: "DataCoreGH" },
   { id: "railwayexternal", label: "Railway API" },
+  { id: "ishare", label: "iShare" },
 ];
 
 const NETWORK_ROWS: Array<{ network: SupplierNetworkSlug; label: string }> = [
@@ -28,6 +29,7 @@ interface Props {
   effective: Record<SupplierNetworkSlug, string>;
   skanka5Configured: boolean;
   sbhConfigured: boolean;
+  ishareConfigured: boolean;
 }
 
 export function SupplierRoutingControls({
@@ -36,6 +38,7 @@ export function SupplierRoutingControls({
   effective,
   skanka5Configured,
   sbhConfigured,
+  ishareConfigured,
 }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<SupplierNetworkSlug | null>(null);
@@ -50,6 +53,10 @@ export function SupplierRoutingControls({
     }
     if (supplier === "successbizhub" && !sbhConfigured) {
       toast.error("Set SUCCESSBIZHUB_API_KEY and offer slugs first");
+      return;
+    }
+    if (supplier === "ishare" && !ishareConfigured) {
+      toast.error("Set ISHARE_API_KEY first");
       return;
     }
 
@@ -79,9 +86,9 @@ export function SupplierRoutingControls({
           Admin routing control
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Every network has the same three choices: <strong>Manual</strong>, <strong>Skanka5</strong>, or{" "}
-          <strong>Success Biz Hub</strong>. No redeploy needed. If you have not picked one here, the{" "}
-          <code>SUPPLIER_FOR_*</code> env default applies.
+          Every network has the same supplier choices: <strong>Manual</strong>, <strong>Skanka5</strong>,{" "}
+          <strong>DataCoreGH</strong>, <strong>Railway API</strong>, or <strong>iShare</strong>. No redeploy
+          needed. If you have not picked one here, the <code>SUPPLIER_FOR_*</code> env default applies.
         </p>
       </div>
 

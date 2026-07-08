@@ -21,6 +21,7 @@ import {
   AdminStatusBadge,
 } from "@/components/admin";
 import { requireRole } from "@/lib/auth/session";
+import { isIshareConfigured } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured } from "@/lib/suppliers/skanka5";
 import { isSuccessBizHubConfigured } from "@/lib/suppliers/successbizhub";
@@ -56,6 +57,7 @@ export default async function SupplierConsolePage() {
 
   const configured = isSkanka5Configured();
   const sbhConfigured = isSuccessBizHubConfigured();
+  const ishareConfigured = isIshareConfigured();
   const railwayConfigured = isRailwayExternalConfigured();
   const webhookConfigured = Boolean(process.env.SKANKA5_WEBHOOK_SECRET);
   const unsignedMode = process.env.SKANKA5_ALLOW_UNSIGNED_WEBHOOKS === "1";
@@ -73,8 +75,15 @@ export default async function SupplierConsolePage() {
     skanka5: "Skanka5",
     successbizhub: "DataCoreGH",
     railwayexternal: "Railway API",
+    ishare: "iShare",
     manual: "Manual",
   };
+
+  const ishareEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
+    { name: "ISHARE_API_KEY", present: ishareConfigured, required: true },
+    { name: "ISHARE_MERCHANT_SLUG", present: Boolean(process.env.ISHARE_MERCHANT_SLUG), required: false },
+    { name: "ISHARE_BASE_URL", present: Boolean(process.env.ISHARE_BASE_URL), required: false },
+  ];
 
   const railwayEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
     { name: "RAILWAY_EXTERNAL_API_KEY", present: railwayConfigured, required: true },
@@ -160,6 +169,7 @@ export default async function SupplierConsolePage() {
           }}
           skanka5Configured={configured}
           sbhConfigured={sbhConfigured}
+          ishareConfigured={ishareConfigured}
         />
         {manualNetworks > 0 && (
           <AdminAlert
@@ -231,6 +241,28 @@ export default async function SupplierConsolePage() {
             </a>
             . Webhook endpoint:{" "}
             <code>/api/webhooks/successbizhub</code>
+          </p>
+        </AdminAlert>
+      </AdminSection>
+
+      <AdminSection
+        title="iShare (MultiData Ghana)"
+        description="AT data console fulfilment — route AirtelTigo via Admin routing or SUPPLIER_FOR_AT=ishare."
+        icon={Cable}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          <AdminStatusBadge ok={ishareConfigured} label="API key" />
+        </div>
+        <AdminAlert
+          tone={ishareConfigured ? "success" : "warning"}
+          title={ishareConfigured ? "iShare API key detected" : "ISHARE_API_KEY not set"}
+        >
+          <AdminEnvCheckList items={ishareEnvChecks} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Endpoint:{" "}
+            <code>https://multidataghana.com/merchintegrate/&lt;merchant&gt;/ishare_api/</code>. Use hostname
+            (not raw IP) so TLS works in Node. Default merchant slug:{" "}
+            <code>divinelychosenstar</code>.
           </p>
         </AdminAlert>
       </AdminSection>
@@ -319,6 +351,10 @@ export default async function SupplierConsolePage() {
           <div className="mt-3 border-t border-slate-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Success Biz Hub</p>
             <SupplierPingButton disabled={!sbhConfigured} supplier="successbizhub" />
+          </div>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">iShare</p>
+            <SupplierPingButton disabled={!ishareConfigured} supplier="ishare" label="Ping balance" />
           </div>
           <div className="mt-3 border-t border-slate-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Railway API</p>

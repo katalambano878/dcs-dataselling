@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ishareClient } from "./ishare-client";
 import { manualClient } from "./manual";
 import { railwayExternalClient } from "./railway-external-client";
 import { skanka5Client } from "./skanka5-client";
@@ -18,6 +19,7 @@ const SUPPLIERS: Record<string, SupplierClient> = {
   skanka5: skanka5Client,
   successbizhub: successBizHubClient,
   railwayexternal: railwayExternalClient,
+  ishare: ishareClient,
   manual: manualClient,
 };
 

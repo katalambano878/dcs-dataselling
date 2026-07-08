@@ -19,7 +19,7 @@ export interface MomoDirectConfig {
 }
 
 /** Automated or manual supplier module for a network. */
-export type NetworkSupplierId = "manual" | "skanka5" | "successbizhub" | "railwayexternal";
+export type NetworkSupplierId = "manual" | "skanka5" | "successbizhub" | "railwayexternal" | "ishare";
 
 export interface SupplierRoutingConfig {
   /** Per-network admin override. When omitted, follows SUPPLIER_FOR_<NETWORK> env. */
@@ -164,6 +164,7 @@ const VALID_SUPPLIER_IDS = new Set<NetworkSupplierId>([
   "skanka5",
   "successbizhub",
   "railwayexternal",
+  "ishare",
 ]);
 
 function normalizeNetworkSupplierId(value: unknown): NetworkSupplierId | undefined {

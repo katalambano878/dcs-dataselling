@@ -13,6 +13,7 @@ const SUPPLIER_LABELS: Record<NetworkSupplierId, string> = {
   skanka5: "Skanka5",
   successbizhub: "DataCoreGH",
   railwayexternal: "Railway API",
+  ishare: "iShare (MultiData)",
   manual: "Manual fulfilment (no automated supplier)",
 };
 

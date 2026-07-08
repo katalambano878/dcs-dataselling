@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertAdminApi } from "@/lib/auth/admin-api";
 import { getSupplierById } from "@/lib/suppliers/registry";
+import { isIshareConfigured, pingSupplier as pingIshare } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured, pingSupplier as pingSkanka5 } from "@/lib/suppliers/skanka5";
 import { isSuccessBizHubConfigured, pingSupplier as pingSuccessBizHub } from "@/lib/suppliers/successbizhub";
@@ -32,6 +33,23 @@ export async function POST(request: Request) {
       supplier: "railwayexternal",
       label: "Products catalogue",
       data: result.raw,
+    });
+  }
+
+  if (supplierId === "ishare") {
+    if (!isIshareConfigured()) {
+      return NextResponse.json({ error: "ISHARE_API_KEY not set" }, { status: 503 });
+    }
+    const result = await pingIshare();
+    if (!result.ok || result.data.status !== "200") {
+      const err = result.ok ? "Balance check failed" : result.error;
+      return NextResponse.json({ ok: false, error: err }, { status: 502 });
+    }
+    return NextResponse.json({
+      ok: true,
+      supplier: "ishare",
+      label: "iShare balance",
+      data: result.data,
     });
   }
 

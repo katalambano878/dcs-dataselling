@@ -10,7 +10,7 @@ export function SupplierPingButton({
   label,
 }: {
   disabled?: boolean;
-  supplier?: "skanka5" | "successbizhub" | "railwayexternal";
+  supplier?: "skanka5" | "successbizhub" | "railwayexternal" | "ishare";
   label?: string;
 }) {
   const router = useRouter();
@@ -42,7 +42,7 @@ export function SupplierPingButton({
         kind: "ok",
         label:
           data.label ??
-          (supplier === "successbizhub" ? "Wallet balance" : "Networks"),
+          (supplier === "successbizhub" || supplier === "ishare" ? "Wallet balance" : "Networks"),
         data: payload,
       });
       startTransition(() => router.refresh());
@@ -55,7 +55,7 @@ export function SupplierPingButton({
   }
 
   const successTitle =
-    supplier === "successbizhub"
+    supplier === "successbizhub" || supplier === "ishare"
       ? "Connected. Wallet response:"
       : "Connected. Networks returned:";
 
@@ -68,7 +68,10 @@ export function SupplierPingButton({
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
-        {label ?? (supplier === "successbizhub" ? "Ping wallet balance" : "Ping /fetch-networks")}
+        {label ??
+          (supplier === "successbizhub" || supplier === "ishare"
+            ? "Ping wallet balance"
+            : "Ping /fetch-networks")}
       </button>
 
       {status.kind === "ok" && (
