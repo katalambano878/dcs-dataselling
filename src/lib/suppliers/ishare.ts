@@ -65,15 +65,21 @@ export function normalizeIshareMsisdn(raw: string): string | null {
 }
 
 /**
- * Map console MB (decimal GB: 1000 MB = 1 GB) to the `data` field (GB string).
- * e.g. 50_000 MB → "50", 500 MB → "0.5"
+ * Map an internal volume to the iShare `data` field.
+ *
+ * VERIFIED LIVE (2026-07-10): `data` is in MB — a push of data=50 deducted
+ * exactly 50 from the merchant balance (4,194,254 → 4,194,204). The balance
+ * itself is binary MB (4,194,304 = 4 TB), so a 1GB send must push 1024.
+ *
+ * Console sends store decimal MB (1000 = 1GB) while catalogue orders store
+ * binary MB (1024 = 1GB), so only console volumes need converting — same
+ * split the railway supplier uses.
  */
-export function volumeDataFromMb(volumeMb: number): string {
-  const gb = volumeMb / 1000;
-  if (gb <= 0) return "0";
-  if (gb % 1 === 0) return String(Math.round(gb));
-  const rounded = Math.round(gb * 10) / 10;
-  return rounded % 1 === 0 ? String(Math.round(rounded)) : rounded.toFixed(1);
+export function volumeDataFromMb(volumeMb: number, scope: SupplierOrderScope): string {
+  if (!Number.isFinite(volumeMb) || volumeMb <= 0) return "0";
+  const binaryMb =
+    scope === "console_send" ? Math.round((volumeMb / 1000) * 1024) : Math.round(volumeMb);
+  return String(Math.max(1, binaryMb));
 }
 
 function extractError(parsed: unknown, fallback: string): string {
@@ -95,22 +101,21 @@ function isRequestAccepted(parsed: IsharePushResponse | IshareStatusResponse): b
   return parsed.request_status === 1;
 }
 
-export function isIshareDeliverySuccess(deliveryStatus: string | undefined | null): boolean {
-  if (!deliveryStatus) return false;
-  const s = deliveryStatus.toLowerCase();
-  if (s.includes("fail") || s.includes("error") || s.includes("reject")) return false;
-  return (
-    s.includes("success") ||
-    s.includes("delivered") ||
-    s.includes("complete") ||
-    (s.includes("deliver") && !s.includes("failed"))
-  );
-}
-
-export function isIshareDeliveryFailed(deliveryStatus: string | undefined | null): boolean {
-  if (!deliveryStatus) return false;
-  const s = deliveryStatus.toLowerCase();
-  return s.includes("fail") || s.includes("error") || s.includes("reject");
+/**
+ * The pushData response is the authoritative success signal: request_status 1
+ * with request_status_code "200" and a "Crediting Successful" message means the
+ * upstream balance was deducted and the recipient credited.
+ *
+ * VERIFIED LIVE (2026-07-10): getStatus returns "Failed to deliver" even for
+ * pushes whose own response said "Crediting Successful" (and for refs that
+ * were never accepted at all), so it must NOT be used to fail/refund a send.
+ */
+function isPushDelivered(parsed: IsharePushResponse): boolean {
+  if (!isRequestAccepted(parsed)) return false;
+  const code = parsed.data?.request_status_code;
+  if (code && code !== "200") return false;
+  const msg = parsed.data?.req_message ?? "";
+  return code === "200" || /credit/i.test(msg) || /success/i.test(parsed.request_message ?? "");
 }
 
 interface LogInput {
@@ -219,49 +224,6 @@ export async function fetchIshareStatus(reference: string): Promise<IshareResult
   return result;
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function pollDeliveryStatus(
-  reference: string,
-  opts: { attempts?: number; delayMs?: number } = {},
-): Promise<IshareResult<{ deliveryStatus: string; status: IshareStatusResponse }>> {
-  const attempts = opts.attempts ?? 4;
-  const delayMs = opts.delayMs ?? 2000;
-  let last: IshareStatusResponse | null = null;
-
-  for (let i = 0; i < attempts; i++) {
-    if (i > 0) await sleep(delayMs);
-    const poll = await fetchIshareStatus(reference);
-    if (!poll.ok) return poll;
-    last = poll.data;
-    if (!isRequestAccepted(poll.data)) {
-      return {
-        ok: false,
-        status: poll.status,
-        error: extractError(poll.data, "Status check rejected"),
-        data: poll.data,
-      };
-    }
-    const delivery = poll.data.details?.delivery_status ?? "";
-    if (isIshareDeliverySuccess(delivery) || isIshareDeliveryFailed(delivery)) {
-      return {
-        ok: true,
-        status: poll.status,
-        data: { deliveryStatus: delivery, status: poll.data },
-      };
-    }
-  }
-
-  const delivery = last?.details?.delivery_status ?? "pending";
-  return {
-    ok: true,
-    status: 200,
-    data: { deliveryStatus: delivery, status: last ?? {} },
-  };
-}
-
 export interface SubmitSingleParams {
   network: SupplierNetworkSlug;
   msisdn: string;
@@ -305,8 +267,8 @@ export async function submitSingleOrder(
     return { ok: false, status: 0, error };
   }
 
-  const dataGb = volumeDataFromMb(params.volumeMb);
-  if (Number(dataGb) <= 0) {
+  const dataMb = volumeDataFromMb(params.volumeMb, params.scope);
+  if (Number(dataMb) <= 0) {
     const error = `Invalid bundle size: ${params.volumeMb}MB`;
     await logSupplierEvent({
       eventType: "submit_single",
@@ -321,54 +283,32 @@ export async function submitSingleOrder(
   const payload = {
     type: "pushData",
     ref: params.reference,
-    data: dataGb,
+    data: dataMb,
     share: phone,
   };
 
   const push = await callIshare<IsharePushResponse>(payload, "pushData");
-  const pushAccepted = push.ok && isRequestAccepted(push.data);
+  const delivered = push.ok && isPushDelivered(push.data);
 
   await logSupplierEvent({
     eventType: "submit_single",
     scope: params.scope,
     reference: params.reference,
-    supplierReference: params.reference,
+    supplierReference: push.ok ? (push.data.data?.req_message ?? params.reference) : params.reference,
     httpStatus: push.status,
-    ok: pushAccepted,
-    error: pushAccepted ? null : push.ok ? extractError(push.data, "pushData rejected") : push.error,
+    ok: delivered,
+    error: delivered ? null : push.ok ? extractError(push.data, "pushData rejected") : push.error,
     requestPayload: payload,
     responsePayload: push.ok ? push.data : push.data,
   });
 
   if (!push.ok) return push;
-  if (!pushAccepted) {
+  if (!delivered) {
     return {
       ok: false,
       status: push.status,
       error: extractError(push.data, "pushData rejected"),
       data: push.data,
-    };
-  }
-
-  const delivery = await pollDeliveryStatus(params.reference);
-  if (!delivery.ok) return delivery;
-
-  const deliveryStatus = delivery.data.deliveryStatus;
-  if (isIshareDeliveryFailed(deliveryStatus)) {
-    return {
-      ok: false,
-      status: delivery.status,
-      error: deliveryStatus || "Delivery failed",
-      data: delivery.data.status,
-    };
-  }
-
-  if (!isIshareDeliverySuccess(deliveryStatus)) {
-    return {
-      ok: false,
-      status: delivery.status,
-      error: deliveryStatus ? `Delivery pending: ${deliveryStatus}` : "Delivery still pending",
-      data: delivery.data.status,
     };
   }
 
@@ -378,7 +318,7 @@ export async function submitSingleOrder(
     data: {
       reference: params.reference,
       status: "delivered",
-      deliveryStatus,
+      deliveryStatus: push.data.data?.req_message ?? "Crediting Successful",
       balance: push.data.balance,
     },
   };
