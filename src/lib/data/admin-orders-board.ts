@@ -2,6 +2,11 @@ import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { reconcileAutoFulfilledOrders } from "@/lib/admin/order-fulfilment";
 import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import {
+  DEFAULT_ADMIN_ORDERS_LIMIT,
+  resolveAdminOrdersDateRange,
+  type AdminOrdersDatePeriod,
+} from "@/lib/admin/order-board-date";
 import { formatDataAmount } from "@/lib/format";
 import { fetchStorefrontOrderBundlesBatch } from "@/lib/orders/storefront-listing";
 import { wholesaleItemRefundReference, wholesaleOrderRefundReference } from "@/lib/payments/wallet";
@@ -69,6 +74,47 @@ export interface AdminOrdersBoardFilters {
   kind?: "all" | "wholesale" | "customer";
   q?: string;
   limit?: number;
+  period?: AdminOrdersDatePeriod | string;
+  fromDate?: string;
+  toDate?: string;
+  agentSlug?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+}
+
+export interface AdminOrderBoardAgentOption {
+  slug: string;
+  name: string;
+}
+
+export async function fetchAdminOrderBoardAgents(): Promise<AdminOrderBoardAgentOption[]> {
+  if (!hasSupabaseConfig()) return [];
+  const service = createServiceClient();
+  const { data } = await service
+    .from("vendors")
+    .select("business_name, slug")
+    .eq("status", "approved")
+    .order("business_name", { ascending: true });
+
+  return ((data ?? []) as { business_name: string; slug: string }[])
+    .filter((v) => v.slug)
+    .map((v) => ({ slug: v.slug, name: v.business_name }));
+}
+
+async function resolveVendorIdBySlug(
+  service: ReturnType<typeof createServiceClient>,
+  slug: string,
+): Promise<string | null> {
+  const { data } = await service.from("vendors").select("id").eq("slug", slug).maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+function rowMatchesPaymentStatus(row: AdminOrderBoardRow, paymentStatus: string): boolean {
+  return row.paymentStatus.toLowerCase() === paymentStatus.toLowerCase();
+}
+
+function rowMatchesPaymentMethod(row: AdminOrderBoardRow, paymentMethod: string): boolean {
+  return row.paymentMethod.toLowerCase() === paymentMethod.toLowerCase();
 }
 
 function vendorName(
@@ -99,8 +145,22 @@ export async function fetchAdminOrderBoardRows(
   const status = filters.status ?? "all";
   const normalizedStatus = status === "queued" ? "processing" : status;
   const kind = filters.kind ?? "all";
-  const limit = filters.limit ?? 400;
+  const limit = Math.min(1000, Math.max(10, filters.limit ?? DEFAULT_ADMIN_ORDERS_LIMIT));
   const q = (filters.q ?? "").trim().toLowerCase();
+  const dateRange = resolveAdminOrdersDateRange({
+    period: filters.period,
+    fromDate: filters.fromDate,
+    toDate: filters.toDate,
+  });
+  const agentSlug = (filters.agentSlug ?? "").trim();
+  const paymentMethod = (filters.paymentMethod ?? "").trim();
+  const paymentStatus = (filters.paymentStatus ?? "").trim();
+
+  let vendorId: string | null = null;
+  if (agentSlug) {
+    vendorId = await resolveVendorIdBySlug(service, agentSlug);
+    if (!vendorId) return [];
+  }
 
   const rows: AdminOrderBoardRow[] = [];
 
@@ -119,6 +179,11 @@ export async function fetchAdminOrderBoardRows(
       )
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (dateRange.from) itemQuery = itemQuery.gte("created_at", dateRange.from);
+    if (dateRange.to) itemQuery = itemQuery.lte("created_at", dateRange.to);
+    if (vendorId) itemQuery = itemQuery.eq("wholesale_orders.vendor_id", vendorId);
+    if (paymentMethod) itemQuery = itemQuery.eq("wholesale_orders.payment_provider", paymentMethod);
 
     if (status !== "all") {
       if (normalizedStatus === "processing") {
@@ -228,6 +293,8 @@ export async function fetchAdminOrderBoardRows(
         if (!hay.includes(q)) continue;
       }
 
+      if (paymentStatus && !rowMatchesPaymentStatus(line, paymentStatus)) continue;
+
       rows.push(line);
     }
   }
@@ -243,7 +310,12 @@ export async function fetchAdminOrderBoardRows(
       `,
       )
       .order("created_at", { ascending: false })
-      .limit(Math.min(limit, 200));
+      .limit(limit);
+
+    if (dateRange.from) orderQuery = orderQuery.gte("created_at", dateRange.from);
+    if (dateRange.to) orderQuery = orderQuery.lte("created_at", dateRange.to);
+    if (vendorId) orderQuery = orderQuery.eq("vendor_id", vendorId);
+    if (paymentMethod) orderQuery = orderQuery.eq("payment_provider", paymentMethod);
 
     if (status !== "all") {
       if (normalizedStatus === "processing") {
@@ -319,6 +391,8 @@ export async function fetchAdminOrderBoardRows(
           .toLowerCase();
         if (!hay.includes(q)) continue;
       }
+
+      if (paymentStatus && !rowMatchesPaymentStatus(line, paymentStatus)) continue;
 
       rows.push(line);
     }

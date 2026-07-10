@@ -28,12 +28,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
+  AdminOrderBoardAgentOption,
   AdminOrderBoardRow,
   AdminOrderBoardNetworkCounts,
   AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import { downloadOrdersCsv } from "@/lib/admin/orders-export";
 import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import {
+  ADMIN_ORDERS_DATE_PRESETS,
+  ADMIN_ORDERS_ENTRY_LIMITS,
+  buildAdminOrdersSearchParams,
+  type AdminOrdersDatePeriod,
+} from "@/lib/admin/order-board-date";
 import { buildBulkExcelClipboard, dataMbToVolumeGb } from "@/lib/wholesale/bulk-format";
 import { NETWORKS } from "@/lib/constants";
 import { formatGHS, formatPhone } from "@/lib/format";
@@ -98,8 +105,37 @@ const CUSTOMER_BULK_STATUS = [
   { value: "refunded", label: "Refund" },
 ] as const;
 
+const FILTER_PAYMENT = [
+  { value: "", label: "All payment methods" },
+  { value: "wallet", label: "Wallet" },
+  { value: "paystack", label: "Paystack" },
+  { value: "api", label: "API" },
+] as const;
+
+const FILTER_PAY_STATUS = [
+  { value: "", label: "All payment statuses" },
+  { value: "completed", label: "Completed" },
+  { value: "pending", label: "Pending" },
+  { value: "refunded", label: "Refunded" },
+  { value: "failed", label: "Failed" },
+] as const;
+
 function rowKey(row: AdminOrderBoardRow) {
   return `${row.kind}:${row.id}`;
+}
+
+interface BoardFilters {
+  status: string;
+  kind: string;
+  network: string;
+  q: string;
+  period: AdminOrdersDatePeriod;
+  fromDate: string;
+  toDate: string;
+  limit: number;
+  agent: string;
+  payment: string;
+  payStatus: string;
 }
 
 interface Props {
@@ -108,6 +144,15 @@ interface Props {
   initialKind: string;
   initialNetwork: AdminOrdersNetworkFilter;
   initialQ: string;
+  initialPeriod: AdminOrdersDatePeriod;
+  initialFromDate: string;
+  initialToDate: string;
+  initialLimit: number;
+  initialAgent: string;
+  initialPayment: string;
+  initialPayStatus: string;
+  dateLabel: string;
+  agents: AdminOrderBoardAgentOption[];
   networkCounts: AdminOrderBoardNetworkCounts;
 }
 
@@ -117,14 +162,61 @@ export function AdminOrdersBoard({
   initialKind,
   initialNetwork,
   initialQ,
+  initialPeriod,
+  initialFromDate,
+  initialToDate,
+  initialLimit,
+  initialAgent,
+  initialPayment,
+  initialPayStatus,
+  dateLabel,
+  agents,
   networkCounts,
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState(initialQ);
+  const [customFrom, setCustomFrom] = useState(initialFromDate);
+  const [customTo, setCustomTo] = useState(initialToDate);
   const [bulkStatus, setBulkStatus] = useState("");
   const [pending, setPending] = useState(false);
   const [actionOpen, setActionOpen] = useState<string | null>(null);
+
+  const currentFilters: BoardFilters = {
+    status: initialStatus,
+    kind: initialKind,
+    network: initialNetwork,
+    q: search,
+    period: initialPeriod,
+    fromDate: customFrom,
+    toDate: customTo,
+    limit: initialLimit,
+    agent: initialAgent,
+    payment: initialPayment,
+    payStatus: initialPayStatus,
+  };
+
+  function navigate(filters: BoardFilters) {
+    const qs = buildAdminOrdersSearchParams({
+      status: filters.status,
+      kind: filters.kind,
+      network: filters.network,
+      q: filters.q,
+      period: filters.period,
+      from: filters.fromDate,
+      to: filters.toDate,
+      limit: filters.limit,
+      agent: filters.agent,
+      payment: filters.payment,
+      payStatus: filters.payStatus,
+    });
+    router.push(qs ? `/admin/orders?${qs}` : "/admin/orders");
+    setSelected(new Set());
+  }
+
+  function applyFilters(patch: Partial<BoardFilters>) {
+    navigate({ ...currentFilters, ...patch });
+  }
 
   const selectedRows = useMemo(
     () => rows.filter((r) => selected.has(rowKey(r))),
@@ -154,22 +246,6 @@ export function AdminOrdersBoard({
       else next.add(key);
       return next;
     });
-  }
-
-  function applyFilters(
-    status: string,
-    kind: string,
-    network: string,
-    q: string,
-  ) {
-    const params = new URLSearchParams();
-    if (status && status !== "all") params.set("status", status);
-    if (kind && kind !== "all") params.set("kind", kind);
-    if (network && network !== "all") params.set("network", network);
-    if (q.trim()) params.set("q", q.trim());
-    const qs = params.toString();
-    router.push(qs ? `/admin/orders?${qs}` : "/admin/orders");
-    setSelected(new Set());
   }
 
   async function runBulkStatus(status: string, targetRows: AdminOrderBoardRow[]) {
@@ -375,7 +451,7 @@ export function AdminOrdersBoard({
   return (
     <AdminSection
       title="Order board"
-      description="Partition by network before export or bulk status — MTN, Telecel, and AT export separately for manual processing."
+      description="Partition by network before export or bulk status. Date defaults to today — widen the range to see older orders."
     >
       <div className="pricing-matrix mb-4 space-y-3">
         <div className="pricing-matrix-filters" role="tablist" aria-label="Filter by network">
@@ -384,7 +460,7 @@ export function AdminOrdersBoard({
             role="tab"
             aria-selected={initialNetwork === "all"}
             className={cn("pricing-matrix-filter-tab", initialNetwork === "all" && "is-active")}
-            onClick={() => applyFilters(initialStatus, initialKind, "all", search)}
+            onClick={() => applyFilters({ network: "all" })}
           >
             All
             <span className="pricing-matrix-filter-count">{networkCounts.all}</span>
@@ -400,7 +476,7 @@ export function AdminOrdersBoard({
                 `pricing-matrix-filter-${network.id}`,
                 initialNetwork === network.id && "is-active",
               )}
-              onClick={() => applyFilters(initialStatus, initialKind, network.id, search)}
+              onClick={() => applyFilters({ network: network.id })}
             >
               {network.name}
               <span className="pricing-matrix-filter-count">{networkCounts[network.id]}</span>
@@ -413,8 +489,52 @@ export function AdminOrdersBoard({
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 rounded-lg border border-border px-3 text-sm"
+            value={initialPeriod}
+            onChange={(e) =>
+              applyFilters({ period: e.target.value as AdminOrdersDatePeriod })
+            }
+          >
+            {ADMIN_ORDERS_DATE_PRESETS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {initialPeriod === "custom" ? (
+            <>
+              <Input
+                type="date"
+                className="h-9 w-[150px]"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="date"
+                className="h-9 w-[150px]"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => applyFilters({ fromDate: customFrom, toDate: customTo })}
+              >
+                Apply dates
+              </Button>
+            </>
+          ) : null}
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+            {dateLabel}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-9 rounded-lg border border-border px-3 text-sm"
             value={initialStatus}
-            onChange={(e) => applyFilters(e.target.value, initialKind, initialNetwork, search)}
+            onChange={(e) => applyFilters({ status: e.target.value })}
           >
             {FILTER_STATUS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -425,7 +545,7 @@ export function AdminOrdersBoard({
           <select
             className="h-9 rounded-lg border border-border px-3 text-sm"
             value={initialKind}
-            onChange={(e) => applyFilters(initialStatus, e.target.value, initialNetwork, search)}
+            onChange={(e) => applyFilters({ kind: e.target.value })}
           >
             {FILTER_KIND.map((o) => (
               <option key={o.value} value={o.value}>
@@ -433,11 +553,56 @@ export function AdminOrdersBoard({
               </option>
             ))}
           </select>
+          <select
+            className="h-9 min-w-[140px] rounded-lg border border-border px-3 text-sm"
+            value={initialAgent}
+            onChange={(e) => applyFilters({ agent: e.target.value })}
+          >
+            <option value="">All agents</option>
+            {agents.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-lg border border-border px-3 text-sm"
+            value={initialPayment}
+            onChange={(e) => applyFilters({ payment: e.target.value })}
+          >
+            {FILTER_PAYMENT.map((o) => (
+              <option key={o.value || "all"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-lg border border-border px-3 text-sm"
+            value={initialPayStatus}
+            onChange={(e) => applyFilters({ payStatus: e.target.value })}
+          >
+            {FILTER_PAY_STATUS.map((o) => (
+              <option key={o.value || "all"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-lg border border-border px-3 text-sm"
+            value={initialLimit}
+            onChange={(e) => applyFilters({ limit: Number(e.target.value) })}
+          >
+            {ADMIN_ORDERS_ENTRY_LIMITS.map((n) => (
+              <option key={n} value={n}>
+                Show {n}
+              </option>
+            ))}
+          </select>
           <form
             className="flex min-w-[200px] flex-1 items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              applyFilters(initialStatus, initialKind, initialNetwork, search);
+              applyFilters({ q: search });
             }}
           >
             <div className="relative flex-1">
@@ -520,7 +685,7 @@ export function AdminOrdersBoard({
         <AdminEmptyState
           icon={ClipboardList}
           title="No orders match this filter"
-          description="Try another network tab, status, or clear filters to see recent agent and storefront orders."
+          description="Try another date range, network tab, or status filter. Orders default to today only."
         />
       ) : (
         <AdminDataTable minWidth="1400px">
