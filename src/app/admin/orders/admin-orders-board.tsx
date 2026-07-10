@@ -33,6 +33,7 @@ import type {
   AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import { downloadOrdersCsv } from "@/lib/admin/orders-export";
+import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
 import { buildBulkExcelClipboard, dataMbToVolumeGb } from "@/lib/wholesale/bulk-format";
 import { NETWORKS } from "@/lib/constants";
 import { formatGHS, formatPhone } from "@/lib/format";
@@ -51,8 +52,7 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral
 
 const FILTER_STATUS = [
   { value: "all", label: "All statuses" },
-  { value: "queued", label: "Queued (Q)" },
-  { value: "processing", label: "Processing" },
+  { value: "processing", label: "Work queue (queued + processing)" },
   { value: "fulfilled", label: "Delivered" },
   { value: "failed", label: "Undelivered" },
   { value: "paid", label: "Paid" },
@@ -210,7 +210,11 @@ export function AdminOrdersBoard({
   }
 
   function exportRows() {
-    return selectedRows.length > 0 ? selectedRows : rows;
+    const base = selectedRows.length > 0 ? selectedRows : rows;
+    if (initialStatus === "processing" || initialStatus === "queued") {
+      return base.filter((row) => !isEffectivelyFulfilled(row));
+    }
+    return base;
   }
 
   function handleExport() {

@@ -8,11 +8,13 @@ import {
   notifyWholesaleItemDelivered,
 } from "@/lib/notifications/wholesale-sms";
 import { refundWholesaleOrderToWallet } from "@/lib/payments/wallet";
+import { syncWholesaleOrderFromItems } from "@/lib/admin/wholesale-order-sync";
 import {
   tryCreditReferralForCustomerOrder,
   tryCreditReferralForWholesaleItem,
 } from "@/lib/referrals/vendor-referral";
 import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
+import { resolveLineStatusFromSupplier } from "@/lib/suppliers/delivery-status";
 import { getResolvedSupplierForNetwork } from "./routing";
 import type { SupplierClient, SupplierNetworkSlug } from "./types";
 
@@ -101,19 +103,27 @@ export async function dispatchCustomerOrderToSupplier(orderId: string): Promise<
     return;
   }
 
+  const lineStatus = resolveLineStatusFromSupplier(result.status ?? "accepted");
+  const now = new Date().toISOString();
+
   await service
     .from("orders")
     .update({
-      status: "processing",
+      status: lineStatus,
       supplier: supplier.id,
       supplier_reference: result.reference ?? null,
       supplier_order_code: result.orderCode ?? null,
       supplier_status: result.status ?? "accepted",
       supplier_response: (result.rawResponse as object | undefined) ?? null,
-      supplier_submitted_at: new Date().toISOString(),
+      supplier_submitted_at: now,
       supplier_error: null,
+      fulfilled_at: lineStatus === "fulfilled" ? now : null,
     })
     .eq("id", row.id);
+
+  if (lineStatus === "fulfilled") {
+    after(() => tryCreditReferralForCustomerOrder(row.id));
+  }
 }
 
 /**
@@ -230,6 +240,7 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
         await service
           .from("wholesale_order_items")
           .update({
+            status: "queued",
             supplier_status: "awaiting_manual",
             supplier_error: null,
           })
@@ -269,15 +280,25 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
     for (const it of groupItems) {
       const slice = supplierOrders.slice(idx, idx + it.quantity);
       idx += it.quantity;
+      const supplierStatus = slice[0]?.status ?? result.status ?? "accepted";
+      const itemStatus = resolveLineStatusFromSupplier(supplierStatus);
+      const now = new Date().toISOString();
       await service
         .from("wholesale_order_items")
         .update({
+          status: itemStatus,
           supplier_order_code: slice[0]?.order_code ?? null,
-          supplier_status: slice[0]?.status ?? result.status ?? "accepted",
+          supplier_status: supplierStatus,
           supplier_response: slice.length > 0 ? (slice as unknown as object) : null,
           supplier_error: null,
+          supplier_fulfilled_at: itemStatus === "fulfilled" ? now : null,
         })
         .eq("id", it.itemId);
+
+      if (itemStatus === "fulfilled") {
+        after(() => tryCreditReferralForWholesaleItem(it.itemId));
+        after(() => notifyWholesaleItemDelivered(it.itemId));
+      }
     }
   }
 
@@ -317,6 +338,8 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
         : null,
     })
     .eq("id", row.id);
+
+  await syncWholesaleOrderFromItems(service, row.id);
 
   if (parentStatus === "failed") {
     await service

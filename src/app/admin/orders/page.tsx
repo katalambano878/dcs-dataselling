@@ -6,6 +6,7 @@ import {
   type AdminOrdersFilterStatus,
   type AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
+import { isEffectivelyFulfilled, isWorkQueueOrderStatus } from "@/lib/admin/order-board-status";
 import {
   AdminConfigError,
   AdminPageIntro,
@@ -41,9 +42,10 @@ export default async function AdminOrdersPage({
   }
 
   const params = await searchParams;
-  const status = VALID_STATUS.has(params.status ?? "")
+  const rawStatus = VALID_STATUS.has(params.status ?? "")
     ? (params.status as AdminOrdersFilterStatus)
     : "all";
+  const status = rawStatus === "queued" ? "processing" : rawStatus;
   const kind = VALID_KIND.has(params.kind ?? "")
     ? (params.kind as "all" | "wholesale" | "customer")
     : "all";
@@ -57,8 +59,8 @@ export default async function AdminOrdersPage({
   const rows =
     network === "all" ? allRows : allRows.filter((r) => r.network === network);
 
-  const processing = rows.filter((r) =>
-    ["queued", "processing", "pending", "paid"].includes(r.orderStatus),
+  const processing = rows.filter(
+    (r) => isWorkQueueOrderStatus(r.orderStatus) && !isEffectivelyFulfilled(r),
   ).length;
   const undelivered = rows.filter((r) => r.orderStatus === "failed").length;
 
@@ -92,7 +94,7 @@ export default async function AdminOrdersPage({
           tone="amber"
           label="In progress"
           value={String(processing)}
-          hint="Queued / processing"
+          hint="Work queue — excludes paid + API-delivered"
         />
         <AdminStatTile
           icon={<ClipboardList className="h-4 w-4" />}

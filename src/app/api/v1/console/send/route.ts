@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sendConsoleBundle } from "@/lib/console/send";
-import type { SupplierNetworkSlug } from "@/lib/suppliers/types";
+import { assertConsoleSendNetwork } from "@/lib/console/networks";
 import { corsPreflightResponse, handleApi } from "../../_lib/respond";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,18 @@ export const POST = handleApi(
       };
     }
 
+    const networkCheck = assertConsoleSendNetwork(parsed.data.network);
+    if (!networkCheck.ok) {
+      return {
+        status: 400,
+        json: { error: networkCheck.error, code: networkCheck.code },
+      };
+    }
+
     const result = await sendConsoleBundle({
       vendorId: ctx.vendorId,
       recipientPhone: parsed.data.recipient_phone,
-      network: parsed.data.network as SupplierNetworkSlug,
+      network: networkCheck.network,
       amountMb: parsed.data.amount_mb,
       reference: parsed.data.reference,
       batchId: parsed.data.batch_id,

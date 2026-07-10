@@ -10,6 +10,7 @@ import {
 } from "@/lib/console/account";
 import { maybeNotifyConsoleLowBalance } from "@/lib/console/notify";
 import { generateConsoleReference } from "@/lib/console/units";
+import { assertConsoleSendNetwork } from "@/lib/console/networks";
 
 export interface ConsoleSendRow {
   id: string;
@@ -52,6 +53,11 @@ export async function sendConsoleBundle(params: {
   const phone = normalizePhone(params.recipientPhone);
   if (!phone) return { ok: false, error: "Invalid Ghana phone number", code: "invalid_phone" };
   if (params.amountMb <= 0) return { ok: false, error: "Invalid bundle size", code: "invalid_amount" };
+
+  const networkCheck = assertConsoleSendNetwork(params.network);
+  if (!networkCheck.ok) {
+    return { ok: false, error: networkCheck.error, code: networkCheck.code };
+  }
 
   const account = await getOrCreateConsoleAccount(params.vendorId);
   if (!account?.enabled) {

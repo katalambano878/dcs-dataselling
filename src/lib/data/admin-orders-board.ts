@@ -1,5 +1,7 @@
 import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { reconcileAutoFulfilledOrders } from "@/lib/admin/order-fulfilment";
+import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
 import { formatDataAmount } from "@/lib/format";
 import { fetchStorefrontOrderBundlesBatch } from "@/lib/orders/storefront-listing";
 import { wholesaleItemRefundReference, wholesaleOrderRefundReference } from "@/lib/payments/wallet";
@@ -92,7 +94,10 @@ export async function fetchAdminOrderBoardRows(
   if (!hasSupabaseConfig()) return [];
 
   const service = createServiceClient();
+  await reconcileAutoFulfilledOrders(service);
+
   const status = filters.status ?? "all";
+  const normalizedStatus = status === "queued" ? "processing" : status;
   const kind = filters.kind ?? "all";
   const limit = filters.limit ?? 400;
   const q = (filters.q ?? "").trim().toLowerCase();
@@ -116,16 +121,14 @@ export async function fetchAdminOrderBoardRows(
       .limit(limit);
 
     if (status !== "all") {
-      if (status === "processing") {
+      if (normalizedStatus === "processing") {
         itemQuery = itemQuery.in("status", ["queued", "processing", "pending"]);
-      } else if (status === "failed") {
+      } else if (normalizedStatus === "failed") {
         itemQuery = itemQuery.eq("status", "failed");
-      } else if (status === "fulfilled") {
+      } else if (normalizedStatus === "fulfilled") {
         itemQuery = itemQuery.eq("status", "fulfilled");
-      } else if (status === "queued") {
-        itemQuery = itemQuery.eq("status", "queued");
       } else {
-        itemQuery = itemQuery.eq("status", status);
+        itemQuery = itemQuery.eq("status", normalizedStatus);
       }
     }
 
@@ -243,10 +246,10 @@ export async function fetchAdminOrderBoardRows(
       .limit(Math.min(limit, 200));
 
     if (status !== "all") {
-      if (status === "processing") {
+      if (normalizedStatus === "processing") {
         orderQuery = orderQuery.in("status", ["paid", "queued", "processing"]);
       } else {
-        orderQuery = orderQuery.eq("status", status as OrderStatus);
+        orderQuery = orderQuery.eq("status", normalizedStatus as OrderStatus);
       }
     }
 
@@ -344,7 +347,13 @@ export async function fetchAdminOrderBoardRows(
     }
   }
 
-  return rows.sort(
+  const sorted = rows.sort(
     (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
   );
+
+  if (normalizedStatus === "processing") {
+    return sorted.filter((row) => !isEffectivelyFulfilled(row));
+  }
+
+  return sorted;
 }

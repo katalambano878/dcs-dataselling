@@ -8,7 +8,11 @@ import { AdminSection } from "@/components/admin";
 import { NetworkBadge } from "@/components/marketplace/network-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NETWORKS, type NetworkId } from "@/lib/constants";
+import type { NetworkId } from "@/lib/constants";
+import {
+  getDefaultConsoleSendNetwork,
+  getConsoleSendNetworkOptions,
+} from "@/lib/console/networks";
 import {
   CONSOLE_SEND_SIZES_MB,
   formatConsoleData,
@@ -23,7 +27,9 @@ type SizeMode = "preset" | "custom";
 
 export function ConsoleSendForm({ balanceMb }: Props) {
   const router = useRouter();
-  const [network, setNetwork] = useState<NetworkId>("mtn");
+  const networkOptions = getConsoleSendNetworkOptions();
+  const singleNetwork = networkOptions.length === 1 ? networkOptions[0]! : null;
+  const [network, setNetwork] = useState<NetworkId>(getDefaultConsoleSendNetwork());
   const [phone, setPhone] = useState("");
   const [sizeMode, setSizeMode] = useState<SizeMode>("preset");
   const [amountMb, setAmountMb] = useState<number>(1000);
@@ -73,12 +79,18 @@ export function ConsoleSendForm({ balanceMb }: Props) {
         error?: string;
         reference?: string;
         supplier_reference?: string | null;
+        status?: string;
+        supplier_status?: string | null;
       };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
       const refLine = data.supplier_reference
         ? ` — supplier ${data.supplier_reference}`
         : "";
-      toast.success(`Bundle sent — ref ${data.reference ?? ""}${refLine}`);
+      if (data.status === "processing") {
+        toast.success(`Send queued for fulfilment — ref ${data.reference ?? ""}${refLine}`);
+      } else {
+        toast.success(`Bundle delivered — ref ${data.reference ?? ""}${refLine}`);
+      }
       setPhone("");
       router.refresh();
     } catch (err) {
@@ -102,17 +114,24 @@ export function ConsoleSendForm({ balanceMb }: Props) {
       <form onSubmit={submit} className="space-y-4 p-4 sm:p-5">
         <label className="block text-sm font-medium text-slate-200">
           Network
+        {singleNetwork ? (
+          <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+            <NetworkBadge network={singleNetwork.id} size="sm" />
+            <span className="text-sm text-white">{singleNetwork.name}</span>
+          </div>
+        ) : (
           <select
             className="mt-1 flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white"
             value={network}
             onChange={(e) => setNetwork(e.target.value as NetworkId)}
           >
-            {NETWORKS.map((n) => (
+            {networkOptions.map((n) => (
               <option key={n.id} value={n.id} className="text-slate-900">
                 {n.name}
               </option>
             ))}
           </select>
+        )}
         </label>
 
         <label className="block text-sm font-medium text-slate-200">

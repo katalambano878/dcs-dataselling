@@ -3,8 +3,8 @@ import { z } from "zod";
 import { getConsoleApiContext, isConsoleApiError } from "@/lib/auth/console-api";
 import { fetchConsoleProfileState } from "@/lib/console/profile";
 import { sendConsoleBundle } from "@/lib/console/send";
+import { assertConsoleSendNetwork } from "@/lib/console/networks";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
-import type { SupplierNetworkSlug } from "@/lib/suppliers/types";
 
 const schema = z.object({
   recipient_phone: z.string().min(9).max(20),
@@ -37,10 +37,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  const networkCheck = assertConsoleSendNetwork(body.network);
+  if (!networkCheck.ok) {
+    return NextResponse.json({ error: networkCheck.error, code: networkCheck.code }, { status: 400 });
+  }
+
   const result = await sendConsoleBundle({
     vendorId: ctx.vendorId,
     recipientPhone: body.recipient_phone,
-    network: body.network as SupplierNetworkSlug,
+    network: networkCheck.network,
     amountMb: body.amount_mb,
     reference: body.reference,
     batchId: body.batch_id,
