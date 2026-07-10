@@ -27,9 +27,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AdminOrderBoardRow } from "@/lib/data/admin-orders-board";
+import type {
+  AdminOrderBoardRow,
+  AdminOrderBoardNetworkCounts,
+  AdminOrdersNetworkFilter,
+} from "@/lib/data/admin-orders-board";
 import { downloadOrdersCsv } from "@/lib/admin/orders-export";
 import { buildBulkExcelClipboard, dataMbToVolumeGb } from "@/lib/wholesale/bulk-format";
+import { NETWORKS } from "@/lib/constants";
 import { formatGHS, formatPhone } from "@/lib/format";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -101,10 +106,19 @@ interface Props {
   rows: AdminOrderBoardRow[];
   initialStatus: string;
   initialKind: string;
+  initialNetwork: AdminOrdersNetworkFilter;
   initialQ: string;
+  networkCounts: AdminOrderBoardNetworkCounts;
 }
 
-export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }: Props) {
+export function AdminOrdersBoard({
+  rows,
+  initialStatus,
+  initialKind,
+  initialNetwork,
+  initialQ,
+  networkCounts,
+}: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState(initialQ);
@@ -142,13 +156,20 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
     });
   }
 
-  function applyFilters(status: string, kind: string, q: string) {
+  function applyFilters(
+    status: string,
+    kind: string,
+    network: string,
+    q: string,
+  ) {
     const params = new URLSearchParams();
     if (status && status !== "all") params.set("status", status);
     if (kind && kind !== "all") params.set("kind", kind);
+    if (network && network !== "all") params.set("network", network);
     if (q.trim()) params.set("q", q.trim());
     const qs = params.toString();
     router.push(qs ? `/admin/orders?${qs}` : "/admin/orders");
+    setSelected(new Set());
   }
 
   async function runBulkStatus(status: string, targetRows: AdminOrderBoardRow[]) {
@@ -199,7 +220,8 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
       return;
     }
     const stamp = format(new Date(), "yyyy-MM-dd-HHmm");
-    downloadOrdersCsv(target, `dcs-orders-${stamp}.csv`);
+    const networkSlug = initialNetwork !== "all" ? `-${initialNetwork}` : "";
+    downloadOrdersCsv(target, `dcs-orders${networkSlug}-${stamp}.csv`);
     toast.success(
       `Exported ${target.length} row(s) — Number + Volume columns ready for bulk paste`,
     );
@@ -349,14 +371,46 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
   return (
     <AdminSection
       title="Order board"
-      description="Copy for paste lands in Excel as Number + Volume columns, or export CSV when the API is down."
+      description="Partition by network before export or bulk status — MTN, Telecel, and AT export separately for manual processing."
     >
+      <div className="pricing-matrix mb-4 space-y-3">
+        <div className="pricing-matrix-filters" role="tablist" aria-label="Filter by network">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={initialNetwork === "all"}
+            className={cn("pricing-matrix-filter-tab", initialNetwork === "all" && "is-active")}
+            onClick={() => applyFilters(initialStatus, initialKind, "all", search)}
+          >
+            All
+            <span className="pricing-matrix-filter-count">{networkCounts.all}</span>
+          </button>
+          {NETWORKS.map((network) => (
+            <button
+              key={network.id}
+              type="button"
+              role="tab"
+              aria-selected={initialNetwork === network.id}
+              className={cn(
+                "pricing-matrix-filter-tab",
+                `pricing-matrix-filter-${network.id}`,
+                initialNetwork === network.id && "is-active",
+              )}
+              onClick={() => applyFilters(initialStatus, initialKind, network.id, search)}
+            >
+              {network.name}
+              <span className="pricing-matrix-filter-count">{networkCounts[network.id]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mb-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 rounded-lg border border-border px-3 text-sm"
             value={initialStatus}
-            onChange={(e) => applyFilters(e.target.value, initialKind, search)}
+            onChange={(e) => applyFilters(e.target.value, initialKind, initialNetwork, search)}
           >
             {FILTER_STATUS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -367,7 +421,7 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
           <select
             className="h-9 rounded-lg border border-border px-3 text-sm"
             value={initialKind}
-            onChange={(e) => applyFilters(initialStatus, e.target.value, search)}
+            onChange={(e) => applyFilters(initialStatus, e.target.value, initialNetwork, search)}
           >
             {FILTER_KIND.map((o) => (
               <option key={o.value} value={o.value}>
@@ -379,7 +433,7 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
             className="flex min-w-[200px] flex-1 items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              applyFilters(initialStatus, initialKind, search);
+              applyFilters(initialStatus, initialKind, initialNetwork, search);
             }}
           >
             <div className="relative flex-1">
@@ -462,7 +516,7 @@ export function AdminOrdersBoard({ rows, initialStatus, initialKind, initialQ }:
         <AdminEmptyState
           icon={ClipboardList}
           title="No orders match this filter"
-          description="Try another status or clear filters to see recent agent and storefront orders."
+          description="Try another network tab, status, or clear filters to see recent agent and storefront orders."
         />
       ) : (
         <AdminDataTable minWidth="1400px">

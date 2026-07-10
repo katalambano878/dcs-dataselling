@@ -25,32 +25,13 @@ import { hasSupabaseConfig } from "@/lib/supabase/server";
 import { formatTierRolesSummary } from "@/lib/vendor/tier-rules";
 import { getTierConfigFromSettings, VENDOR_TIERS } from "@/lib/vendor/tiers";
 import { Badge } from "@/components/ui/badge";
-import { formatCompact, formatGHS } from "@/lib/format";
+import { formatGHS } from "@/lib/format";
+import { AdminVendorsTable } from "./admin-vendors-table";
 import { GrantApiButton } from "./grant-api-button";
 import { RecalculateTiersButton } from "./recalculate-tiers-button";
 import { TierRolesEditor } from "./tier-roles-editor";
-import { VendorActions } from "./vendor-actions";
-import { VendorAgentMenu } from "./vendor-agent-menu";
-import type { VendorStatus, VendorTier } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_VARIANT: Record<
-  VendorStatus,
-  "success" | "warning" | "danger" | "neutral" | "default"
-> = {
-  approved: "success",
-  pending: "warning",
-  suspended: "danger",
-  rejected: "danger",
-};
-
-const TIER_VARIANT: Record<VendorTier, "neutral" | "default" | "success" | "warning"> = {
-  starter: "neutral",
-  verified: "default",
-  pro: "success",
-  express: "warning",
-};
 
 const STAGE_META: Record<
   RegistrationStage,
@@ -269,95 +250,7 @@ export default async function AdminVendorsPage() {
         )}
       </AdminSection>
 
-      <AdminSection title="All vendors" description="Live stores, roles, and onboarding status." icon={Store}>
-        {vendors.length === 0 ? (
-          <AdminEmptyState
-            icon={Store}
-            title="No vendors yet"
-            description="Agents appear here after they submit a store application."
-          />
-        ) : (
-          <AdminDataTable minWidth="860px">
-            <AdminTableHead>
-              <AdminTh>Vendor</AdminTh>
-              <AdminTh>Status</AdminTh>
-              <AdminTh>Role</AdminTh>
-              <AdminTh>Onboarding</AdminTh>
-              <AdminTh>Orders</AdminTh>
-              <AdminTh>Rating</AdminTh>
-              <AdminTh>Actions</AdminTh>
-            </AdminTableHead>
-            <AdminTableBody>
-              {vendors.map((v) => {
-                const tierConfig = getTierConfigFromSettings(v.tier, tierSettings);
-                return (
-                  <AdminTr key={v.id}>
-                    <AdminTd>
-                      <VendorAgentMenu
-                        vendorId={v.id}
-                        businessName={v.business_name}
-                        slug={v.slug}
-                        status={v.status}
-                        tier={v.tier ?? "starter"}
-                        tierLabels={tierSettings.tiers}
-                      />
-                      <p className="text-xs text-muted">/{v.slug}</p>
-                    </AdminTd>
-                    <AdminTd>
-                      <Badge variant={STATUS_VARIANT[v.status]}>{v.status}</Badge>
-                      {v.api_only && (
-                        <Badge className="ml-1" variant="default">
-                          API only
-                        </Badge>
-                      )}
-                      {v.featured && (
-                        <Badge className="ml-1" variant="default">
-                          featured
-                        </Badge>
-                      )}
-                    </AdminTd>
-                    <AdminTd>
-                      <Badge variant={TIER_VARIANT[v.tier]}>{tierConfig.label}</Badge>
-                      <p className="mt-0.5 text-[10px] text-muted">
-                        {v.commission_rate}% fee · {Math.round(tierConfig.rewardRate * 100)}% rewards
-                        {v.tier_manual ? " · manual" : ""}
-                      </p>
-                    </AdminTd>
-                    <AdminTd>
-                      <span className="text-xs capitalize text-muted">
-                        {v.api_only
-                          ? v.status === "approved"
-                            ? "API active"
-                            : "API pending"
-                          : v.status === "approved"
-                            ? "Live"
-                            : (v.kyc_status?.replace(/_/g, " ") ?? "—")}
-                      </span>
-                    </AdminTd>
-                    <AdminTd className="num">{formatCompact(v.total_orders)}</AdminTd>
-                    <AdminTd>
-                      <span className="num font-medium">{Number(v.rating).toFixed(1)}</span>
-                      <span className="text-xs text-muted"> · ~{v.fulfilment_minutes}m</span>
-                    </AdminTd>
-                    <AdminTd>
-                      <VendorActions
-                        vendorId={v.id}
-                        slug={v.slug}
-                        status={v.status}
-                        featured={v.featured}
-                        tier={v.tier ?? "starter"}
-                        tierManual={v.tier_manual ?? false}
-                        tierLabels={tierSettings.tiers}
-                        apiOnly={v.api_only}
-                      />
-                    </AdminTd>
-                  </AdminTr>
-                );
-              })}
-            </AdminTableBody>
-          </AdminDataTable>
-        )}
-      </AdminSection>
+      <AdminVendorsTable vendors={vendors} tierSettings={tierSettings} />
     </AdminPageRoot>
   );
 }

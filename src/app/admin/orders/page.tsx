@@ -1,8 +1,10 @@
 import { ClipboardList } from "lucide-react";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 import {
+  countAdminOrderBoardByNetwork,
   fetchAdminOrderBoardRows,
   type AdminOrdersFilterStatus,
+  type AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import {
   AdminConfigError,
@@ -27,11 +29,12 @@ const VALID_STATUS = new Set([
 ]);
 
 const VALID_KIND = new Set(["all", "wholesale", "customer"]);
+const VALID_NETWORK = new Set(["all", "mtn", "telecel", "at"]);
 
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; kind?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; kind?: string; network?: string; q?: string }>;
 }) {
   if (!hasSupabaseConfig()) {
     return <AdminConfigError />;
@@ -44,21 +47,36 @@ export default async function AdminOrdersPage({
   const kind = VALID_KIND.has(params.kind ?? "")
     ? (params.kind as "all" | "wholesale" | "customer")
     : "all";
+  const network = VALID_NETWORK.has(params.network ?? "")
+    ? (params.network as AdminOrdersNetworkFilter)
+    : "all";
   const q = params.q ?? "";
 
-  const rows = await fetchAdminOrderBoardRows({ status, kind, q });
+  const allRows = await fetchAdminOrderBoardRows({ status, kind, q });
+  const networkCounts = countAdminOrderBoardByNetwork(allRows);
+  const rows =
+    network === "all" ? allRows : allRows.filter((r) => r.network === network);
 
   const processing = rows.filter((r) =>
     ["queued", "processing", "pending", "paid"].includes(r.orderStatus),
   ).length;
   const undelivered = rows.filter((r) => r.orderStatus === "failed").length;
 
+  const networkLabel =
+    network === "all"
+      ? "All networks"
+      : network === "mtn"
+        ? "MTN"
+        : network === "telecel"
+          ? "Telecel"
+          : "AT";
+
   return (
     <AdminPageRoot>
       <AdminPageIntro
         badge="Order pipeline"
-        description="Filter, bulk-update, or export Number + Volume CSV — copy into agent bulk paste when the API is down."
-        meta={`${rows.length} rows · ${processing} in progress · ${undelivered} undelivered`}
+        description="Filter by network, bulk-update, or export Number + Volume CSV — one network at a time for manual fulfilment."
+        meta={`${rows.length} rows · ${networkLabel} · ${processing} in progress · ${undelivered} undelivered`}
       />
 
       <AdminStatGrid>
@@ -67,7 +85,7 @@ export default async function AdminOrdersPage({
           tone="sky"
           label="Visible rows"
           value={String(rows.length)}
-          hint="Current filter"
+          hint={networkLabel}
         />
         <AdminStatTile
           icon={<ClipboardList className="h-4 w-4" />}
@@ -89,7 +107,9 @@ export default async function AdminOrdersPage({
         rows={rows}
         initialStatus={status}
         initialKind={kind}
+        initialNetwork={network}
         initialQ={q}
+        networkCounts={networkCounts}
       />
     </AdminPageRoot>
   );

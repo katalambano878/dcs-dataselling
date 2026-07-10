@@ -4,6 +4,23 @@ import { formatDataAmount } from "@/lib/format";
 import { fetchStorefrontOrderBundlesBatch } from "@/lib/orders/storefront-listing";
 import { wholesaleItemRefundReference, wholesaleOrderRefundReference } from "@/lib/payments/wallet";
 import type { OrderStatus } from "@/lib/constants";
+import type { NetworkId } from "@/lib/constants";
+
+export type AdminOrdersNetworkFilter = "all" | NetworkId;
+
+export type AdminOrderBoardNetworkCounts = Record<"all" | NetworkId, number>;
+
+export function countAdminOrderBoardByNetwork(
+  rows: AdminOrderBoardRow[],
+): AdminOrderBoardNetworkCounts {
+  const counts: AdminOrderBoardNetworkCounts = { all: rows.length, mtn: 0, telecel: 0, at: 0 };
+  for (const row of rows) {
+    if (row.network === "mtn") counts.mtn += 1;
+    else if (row.network === "telecel") counts.telecel += 1;
+    else if (row.network === "at") counts.at += 1;
+  }
+  return counts;
+}
 
 export type AdminOrderLineKind = "wholesale_item" | "customer";
 

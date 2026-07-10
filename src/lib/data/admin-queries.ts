@@ -6,6 +6,9 @@ export interface AdminVendorRow {
   id: string;
   slug: string;
   business_name: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
   status: VendorStatus;
   kyc_status: string | null;
   verified: boolean;
@@ -65,7 +68,7 @@ export async function fetchAdminVendors(): Promise<AdminVendorRow[]> {
   const { data, error } = await service
     .from("vendors")
     .select(
-      "id, slug, business_name, status, kyc_status, verified, featured, tier, tier_manual, commission_rate, rating, total_orders, fulfilment_minutes, api_only, created_at",
+      "id, user_id, slug, business_name, status, kyc_status, verified, featured, tier, tier_manual, commission_rate, rating, total_orders, fulfilment_minutes, api_only, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -73,13 +76,56 @@ export async function fetchAdminVendors(): Promise<AdminVendorRow[]> {
     console.error("[fetchAdminVendors]", error);
     return [];
   }
-  return ((data ?? []) as AdminVendorRow[]).map((row) => ({
-    ...row,
-    tier: row.tier ?? "starter",
-    tier_manual: row.tier_manual ?? false,
-    commission_rate: Number(row.commission_rate ?? 8),
-    api_only: Boolean(row.api_only),
-  }));
+
+  const rows = (data ?? []) as Array<
+    AdminVendorRow & { user_id: string }
+  >;
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+
+  const profileByUserId = new Map<
+    string,
+    { full_name: string | null; email: string | null; phone: string | null }
+  >();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profileErr } = await service
+      .from("profiles")
+      .select("id, full_name, email, phone")
+      .in("id", userIds);
+
+    if (profileErr) {
+      console.error("[fetchAdminVendors] profiles", profileErr);
+    } else {
+      for (const p of profiles ?? []) {
+        const row = p as {
+          id: string;
+          full_name: string | null;
+          email: string | null;
+          phone: string | null;
+        };
+        profileByUserId.set(row.id, {
+          full_name: row.full_name,
+          email: row.email,
+          phone: row.phone,
+        });
+      }
+    }
+  }
+
+  return rows.map((row) => {
+    const { user_id, ...vendor } = row;
+    const profile = profileByUserId.get(user_id);
+    return {
+      ...vendor,
+      full_name: profile?.full_name ?? null,
+      email: profile?.email ?? null,
+      phone: profile?.phone ?? null,
+      tier: vendor.tier ?? "starter",
+      tier_manual: vendor.tier_manual ?? false,
+      commission_rate: Number(vendor.commission_rate ?? 8),
+      api_only: Boolean(vendor.api_only),
+    };
+  });
 }
 
 /**
