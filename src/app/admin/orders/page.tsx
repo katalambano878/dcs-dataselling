@@ -7,7 +7,11 @@ import {
   type AdminOrdersFilterStatus,
   type AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
-import { isEffectivelyFulfilled, isWorkQueueOrderStatus } from "@/lib/admin/order-board-status";
+import {
+  isEffectivelyFailed,
+  isEffectivelyFulfilled,
+  isWorkQueueOrderStatus,
+} from "@/lib/admin/order-board-status";
 import {
   ADMIN_ORDERS_DATE_PRESETS,
   ADMIN_ORDERS_ENTRY_LIMITS,
@@ -117,9 +121,12 @@ export default async function AdminOrdersPage({
     network === "all" ? allRows : allRows.filter((r) => r.network === network);
 
   const processing = rows.filter(
-    (r) => isWorkQueueOrderStatus(r.orderStatus) && !isEffectivelyFulfilled(r),
+    (r) =>
+      isWorkQueueOrderStatus(r.orderStatus) &&
+      !isEffectivelyFulfilled(r) &&
+      !isEffectivelyFailed(r),
   ).length;
-  const undelivered = rows.filter((r) => r.orderStatus === "failed").length;
+  const undelivered = rows.filter((r) => isEffectivelyFailed(r)).length;
 
   const networkLabel =
     network === "all"
@@ -158,7 +165,7 @@ export default async function AdminOrdersPage({
           tone="gold"
           label="Undelivered"
           value={String(undelivered)}
-          hint="Failed lines"
+          hint="Failed lines — payment or API failed"
         />
       </AdminStatGrid>
 

@@ -34,7 +34,7 @@ import type {
   AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import { downloadOrdersCsv } from "@/lib/admin/orders-export";
-import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import { isEffectivelyFailed, isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
 import {
   ADMIN_ORDERS_DATE_PRESETS,
   ADMIN_ORDERS_ENTRY_LIMITS,
@@ -61,7 +61,7 @@ const FILTER_STATUS = [
   { value: "all", label: "All statuses" },
   { value: "processing", label: "Work queue (queued + processing)" },
   { value: "fulfilled", label: "Delivered" },
-  { value: "failed", label: "Undelivered" },
+  { value: "failed", label: "Failed (payment or API)" },
   { value: "paid", label: "Paid" },
   { value: "refunded", label: "Refunded" },
 ] as const;
@@ -288,7 +288,7 @@ export function AdminOrdersBoard({
   function exportRows() {
     const base = selectedRows.length > 0 ? selectedRows : rows;
     if (initialStatus === "processing" || initialStatus === "queued") {
-      return base.filter((row) => !isEffectivelyFulfilled(row));
+      return base.filter((row) => !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row));
     }
     return base;
   }

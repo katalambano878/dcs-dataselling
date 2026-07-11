@@ -30,6 +30,9 @@ export function normalizeSupplierStatus(status: string | null | undefined): stri
   return (status ?? "").trim().toLowerCase();
 }
 
+/** Statuses the admin board's failed-order queries match against (supplier_status column). */
+export const SUPPLIER_FAILED_STATUSES: readonly string[] = [...SUPPLIER_FAILED];
+
 /** Supplier API reports the data bundle was delivered (not merely accepted). */
 export function isSupplierDeliveryComplete(supplierStatus: string | null | undefined): boolean {
   const normalized = normalizeSupplierStatus(supplierStatus);
@@ -44,6 +47,19 @@ export function isSupplierDeliveryComplete(supplierStatus: string | null | undef
     return true;
   }
   return false;
+}
+
+/** Supplier API reports the send failed / was rejected — the bundle will not arrive. */
+export function isSupplierDeliveryFailed(supplierStatus: string | null | undefined): boolean {
+  const normalized = normalizeSupplierStatus(supplierStatus);
+  if (!normalized) return false;
+  if (SUPPLIER_IN_FLIGHT.has(normalized) || SUPPLIER_DELIVERY_COMPLETE.has(normalized)) return false;
+  if (SUPPLIER_FAILED.has(normalized)) return true;
+  return (
+    normalized.includes("fail") ||
+    normalized.includes("reject") ||
+    normalized.includes("cancel")
+  );
 }
 
 export function isPaymentSettledForWholesale(

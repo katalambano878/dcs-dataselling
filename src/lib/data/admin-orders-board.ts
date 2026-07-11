@@ -1,7 +1,8 @@
 import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { reconcileAutoFulfilledOrders } from "@/lib/admin/order-fulfilment";
-import { isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import { isEffectivelyFailed, isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import { SUPPLIER_FAILED_STATUSES } from "@/lib/suppliers/delivery-status";
 import {
   DEFAULT_ADMIN_ORDERS_LIMIT,
   resolveAdminOrdersDateRange,
@@ -109,6 +110,9 @@ async function resolveVendorIdBySlug(
   return (data as { id: string } | null)?.id ?? null;
 }
 
+/** PostgREST `.or()` clause matching rows that failed by status or by supplier response. */
+const FAILED_OR_CLAUSE = `status.eq.failed,supplier_status.in.(${SUPPLIER_FAILED_STATUSES.join(",")})`;
+
 function rowMatchesPaymentStatus(row: AdminOrderBoardRow, paymentStatus: string): boolean {
   return row.paymentStatus.toLowerCase() === paymentStatus.toLowerCase();
 }
@@ -189,7 +193,8 @@ export async function fetchAdminOrderBoardRows(
       if (normalizedStatus === "processing") {
         itemQuery = itemQuery.in("status", ["queued", "processing", "pending"]);
       } else if (normalizedStatus === "failed") {
-        itemQuery = itemQuery.eq("status", "failed");
+        // Failed by line status OR by supplier response (even if still stuck on queued).
+        itemQuery = itemQuery.or(FAILED_OR_CLAUSE);
       } else if (normalizedStatus === "fulfilled") {
         itemQuery = itemQuery.eq("status", "fulfilled");
       } else {
@@ -320,6 +325,8 @@ export async function fetchAdminOrderBoardRows(
     if (status !== "all") {
       if (normalizedStatus === "processing") {
         orderQuery = orderQuery.in("status", ["paid", "queued", "processing"]);
+      } else if (normalizedStatus === "failed") {
+        orderQuery = orderQuery.or(FAILED_OR_CLAUSE);
       } else {
         orderQuery = orderQuery.eq("status", normalizedStatus as OrderStatus);
       }
@@ -426,7 +433,11 @@ export async function fetchAdminOrderBoardRows(
   );
 
   if (normalizedStatus === "processing") {
-    return sorted.filter((row) => !isEffectivelyFulfilled(row));
+    return sorted.filter((row) => !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row));
+  }
+
+  if (normalizedStatus === "failed") {
+    return sorted.filter((row) => isEffectivelyFailed(row));
   }
 
   return sorted;
