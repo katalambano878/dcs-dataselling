@@ -1,7 +1,12 @@
 import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { reconcileAutoFulfilledOrders } from "@/lib/admin/order-fulfilment";
-import { isEffectivelyFailed, isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import {
+  isApiProcessing,
+  isAwaitingManualDelivery,
+  isEffectivelyFailed,
+  isEffectivelyFulfilled,
+} from "@/lib/admin/order-board-status";
 import { SUPPLIER_FAILED_STATUSES } from "@/lib/suppliers/delivery-status";
 import {
   DEFAULT_ADMIN_ORDERS_LIMIT,
@@ -62,6 +67,7 @@ export interface AdminOrderBoardRow {
 
 export type AdminOrdersFilterStatus =
   | "all"
+  | "undelivered"
   | "queued"
   | "processing"
   | "fulfilled"
@@ -147,7 +153,8 @@ export async function fetchAdminOrderBoardRows(
   await reconcileAutoFulfilledOrders(service);
 
   const status = filters.status ?? "all";
-  const normalizedStatus = status === "queued" ? "processing" : status;
+  // "queued" is a legacy URL value — it now maps to the manual Undelivered bucket.
+  const normalizedStatus = status === "queued" ? "undelivered" : status;
   const kind = filters.kind ?? "all";
   const limit = Math.min(1000, Math.max(10, filters.limit ?? DEFAULT_ADMIN_ORDERS_LIMIT));
   const q = (filters.q ?? "").trim().toLowerCase();
@@ -190,8 +197,12 @@ export async function fetchAdminOrderBoardRows(
     if (paymentMethod) itemQuery = itemQuery.eq("wholesale_orders.payment_provider", paymentMethod);
 
     if (status !== "all") {
-      if (normalizedStatus === "processing") {
-        itemQuery = itemQuery.in("status", ["queued", "processing", "pending"]);
+      if (normalizedStatus === "undelivered") {
+        // Manual delivery bucket — API has not accepted these lines.
+        itemQuery = itemQuery.in("status", ["queued", "pending"]);
+      } else if (normalizedStatus === "processing") {
+        // API-connected bucket — a supplier accepted and is handling delivery.
+        itemQuery = itemQuery.eq("status", "processing");
       } else if (normalizedStatus === "failed") {
         // Failed by line status OR by supplier response (even if still stuck on queued).
         itemQuery = itemQuery.or(FAILED_OR_CLAUSE);
@@ -323,8 +334,10 @@ export async function fetchAdminOrderBoardRows(
     if (paymentMethod) orderQuery = orderQuery.eq("payment_provider", paymentMethod);
 
     if (status !== "all") {
-      if (normalizedStatus === "processing") {
-        orderQuery = orderQuery.in("status", ["paid", "queued", "processing"]);
+      if (normalizedStatus === "undelivered") {
+        orderQuery = orderQuery.in("status", ["paid", "queued"]);
+      } else if (normalizedStatus === "processing") {
+        orderQuery = orderQuery.eq("status", "processing");
       } else if (normalizedStatus === "failed") {
         orderQuery = orderQuery.or(FAILED_OR_CLAUSE);
       } else {
@@ -432,8 +445,12 @@ export async function fetchAdminOrderBoardRows(
     (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
   );
 
+  if (normalizedStatus === "undelivered") {
+    return sorted.filter((row) => isAwaitingManualDelivery(row));
+  }
+
   if (normalizedStatus === "processing") {
-    return sorted.filter((row) => !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row));
+    return sorted.filter((row) => isApiProcessing(row));
   }
 
   if (normalizedStatus === "failed") {

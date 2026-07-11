@@ -34,7 +34,11 @@ import type {
   AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import { downloadOrdersCsv } from "@/lib/admin/orders-export";
-import { isEffectivelyFailed, isEffectivelyFulfilled } from "@/lib/admin/order-board-status";
+import {
+  isEffectivelyFailed,
+  isEffectivelyFulfilled,
+  orderStatusDisplayLabel,
+} from "@/lib/admin/order-board-status";
 import {
   ADMIN_ORDERS_DATE_PRESETS,
   ADMIN_ORDERS_ENTRY_LIMITS,
@@ -59,10 +63,10 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral
 
 const FILTER_STATUS = [
   { value: "all", label: "All statuses" },
-  { value: "processing", label: "Work queue (queued + processing)" },
+  { value: "undelivered", label: "Undelivered (manual delivery)" },
+  { value: "processing", label: "Processing (supplier API)" },
   { value: "fulfilled", label: "Delivered" },
   { value: "failed", label: "Failed (payment or API)" },
-  { value: "paid", label: "Paid" },
   { value: "refunded", label: "Refunded" },
 ] as const;
 
@@ -73,22 +77,22 @@ const FILTER_KIND = [
 ] as const;
 
 const WHOLESALE_BULK_STATUS = [
-  { value: "queued", label: "Set to queued" },
+  { value: "queued", label: "Set undelivered (manual)" },
   { value: "processing", label: "Set to processing" },
   { value: "fulfilled", label: "Mark delivered" },
-  { value: "failed", label: "Mark undelivered" },
+  { value: "failed", label: "Mark failed" },
 ] as const;
 
-/** Row ⋮ menu labels — aligned with ops workflow (Set → Process → Deliver → Refund). */
+/** Row ⋮ menu labels — aligned with ops workflow (Undelivered → Process → Deliver → Refund). */
 const WHOLESALE_ROW_ACTIONS = [
-  { value: "queued", label: "Set to queued" },
+  { value: "queued", label: "Set undelivered (manual)" },
   { value: "processing", label: "Process order" },
   { value: "fulfilled", label: "Deliver order" },
-  { value: "failed", label: "Mark undelivered" },
+  { value: "failed", label: "Mark failed" },
 ] as const;
 
 const CUSTOMER_ROW_ACTIONS = [
-  { value: "queued", label: "Set to queued" },
+  { value: "queued", label: "Set undelivered (manual)" },
   { value: "processing", label: "Process order" },
   { value: "fulfilled", label: "Deliver order" },
   { value: "failed", label: "Mark failed" },
@@ -98,7 +102,7 @@ const CUSTOMER_ROW_ACTIONS = [
 const REFUNDABLE_WHOLESALE_STATUSES = new Set(["failed", "processing", "queued", "pending"]);
 
 const CUSTOMER_BULK_STATUS = [
-  { value: "queued", label: "Set to queued" },
+  { value: "queued", label: "Set undelivered (manual)" },
   { value: "processing", label: "Set to processing" },
   { value: "fulfilled", label: "Mark delivered" },
   { value: "failed", label: "Mark failed" },
@@ -287,7 +291,7 @@ export function AdminOrdersBoard({
 
   function exportRows() {
     const base = selectedRows.length > 0 ? selectedRows : rows;
-    if (initialStatus === "processing" || initialStatus === "queued") {
+    if (["undelivered", "processing", "queued"].includes(initialStatus)) {
       return base.filter((row) => !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row));
     }
     return base;
@@ -751,7 +755,7 @@ export function AdminOrdersBoard({
                   <AdminTd className="capitalize text-xs">{row.paymentMethod}</AdminTd>
                   <AdminTd>
                     <Badge variant={STATUS_VARIANT[row.orderStatus] ?? "default"}>
-                      {row.orderStatus}
+                      {orderStatusDisplayLabel(row.orderStatus)}
                     </Badge>
                   </AdminTd>
                   <AdminTd className="text-xs capitalize">{row.paymentStatus}</AdminTd>

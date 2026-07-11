@@ -32,3 +32,32 @@ export function isEffectivelyFailed(row: {
   if (["fulfilled", "refunded"].includes(row.orderStatus)) return false;
   return row.paymentStatus === "failed" || isSupplierDeliveryFailed(row.apiStatus);
 }
+
+type BoardStatusRow = {
+  orderStatus: string;
+  paymentStatus: string;
+  apiStatus: string | null;
+};
+
+/**
+ * Undelivered = waiting for MANUAL delivery. The dispatcher only moves a line
+ * to `processing` when an automated supplier API accepts it, so anything still
+ * on queued/pending/paid (and not delivered or failed) needs a human to send it.
+ */
+export function isAwaitingManualDelivery(row: BoardStatusRow): boolean {
+  if (!["queued", "pending", "paid"].includes(row.orderStatus)) return false;
+  return !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row);
+}
+
+/** Processing = a supplier API accepted the order and is handling delivery. */
+export function isApiProcessing(row: BoardStatusRow): boolean {
+  if (row.orderStatus !== "processing") return false;
+  return !isEffectivelyFulfilled(row) && !isEffectivelyFailed(row);
+}
+
+/** Uniform admin-facing labels: fulfilled → delivered, queued/pending/paid → undelivered. */
+export function orderStatusDisplayLabel(status: string): string {
+  if (status === "fulfilled") return "delivered";
+  if (["queued", "pending", "paid"].includes(status)) return "undelivered";
+  return status;
+}

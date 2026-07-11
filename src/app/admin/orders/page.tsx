@@ -8,9 +8,9 @@ import {
   type AdminOrdersNetworkFilter,
 } from "@/lib/data/admin-orders-board";
 import {
+  isApiProcessing,
+  isAwaitingManualDelivery,
   isEffectivelyFailed,
-  isEffectivelyFulfilled,
-  isWorkQueueOrderStatus,
 } from "@/lib/admin/order-board-status";
 import {
   ADMIN_ORDERS_DATE_PRESETS,
@@ -32,6 +32,7 @@ export const dynamic = "force-dynamic";
 
 const VALID_STATUS = new Set([
   "all",
+  "undelivered",
   "queued",
   "processing",
   "fulfilled",
@@ -78,7 +79,8 @@ export default async function AdminOrdersPage({
   const rawStatus = VALID_STATUS.has(params.status ?? "")
     ? (params.status as AdminOrdersFilterStatus)
     : "all";
-  const status = rawStatus === "queued" ? "processing" : rawStatus;
+  // Legacy links: queued now means the manual Undelivered bucket.
+  const status = rawStatus === "queued" ? "undelivered" : rawStatus;
   const kind = VALID_KIND.has(params.kind ?? "")
     ? (params.kind as "all" | "wholesale" | "customer")
     : "all";
@@ -120,13 +122,9 @@ export default async function AdminOrdersPage({
   const rows =
     network === "all" ? allRows : allRows.filter((r) => r.network === network);
 
-  const processing = rows.filter(
-    (r) =>
-      isWorkQueueOrderStatus(r.orderStatus) &&
-      !isEffectivelyFulfilled(r) &&
-      !isEffectivelyFailed(r),
-  ).length;
-  const undelivered = rows.filter((r) => isEffectivelyFailed(r)).length;
+  const undelivered = rows.filter((r) => isAwaitingManualDelivery(r)).length;
+  const processing = rows.filter((r) => isApiProcessing(r)).length;
+  const failed = rows.filter((r) => isEffectivelyFailed(r)).length;
 
   const networkLabel =
     network === "all"
@@ -142,7 +140,7 @@ export default async function AdminOrdersPage({
       <AdminPageIntro
         badge="Order pipeline"
         description="Today's orders by default — widen the date range or filters to pull older history."
-        meta={`${rows.length} rows · ${networkLabel} · ${dateRange.label} · ${processing} in progress · ${undelivered} undelivered`}
+        meta={`${rows.length} rows · ${networkLabel} · ${dateRange.label} · ${undelivered} undelivered · ${processing} processing · ${failed} failed`}
       />
 
       <AdminStatGrid>
@@ -156,16 +154,23 @@ export default async function AdminOrdersPage({
         <AdminStatTile
           icon={<ClipboardList className="h-4 w-4" />}
           tone="amber"
-          label="In progress"
-          value={String(processing)}
-          hint="Work queue — excludes paid + API-delivered"
+          label="Undelivered"
+          value={String(undelivered)}
+          hint="Manual delivery — no API handling these"
         />
         <AdminStatTile
           icon={<ClipboardList className="h-4 w-4" />}
           tone="gold"
-          label="Undelivered"
-          value={String(undelivered)}
-          hint="Failed lines — payment or API failed"
+          label="Processing"
+          value={String(processing)}
+          hint="Supplier API accepted — delivery in flight"
+        />
+        <AdminStatTile
+          icon={<ClipboardList className="h-4 w-4" />}
+          tone="rose"
+          label="Failed"
+          value={String(failed)}
+          hint="Payment or API failed"
         />
       </AdminStatGrid>
 
