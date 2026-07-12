@@ -86,10 +86,16 @@ export function ConsoleSendForm({ balanceMb }: Props) {
       const refLine = data.supplier_reference
         ? ` — supplier ${data.supplier_reference}`
         : "";
-      if (data.status === "processing") {
-        toast.success(`Send queued for fulfilment — ref ${data.reference ?? ""}${refLine}`);
-      } else {
+      if (data.status === "completed") {
         toast.success(`Bundle delivered — ref ${data.reference ?? ""}${refLine}`);
+      } else if (data.status === "pending" || data.supplier_status === "awaiting_manual") {
+        toast.warning(
+          `Undelivered — manual delivery required (supplier API is off) — ref ${data.reference ?? ""}`,
+        );
+      } else if (data.status === "processing") {
+        toast.success(`Processing — supplier API accepted — ref ${data.reference ?? ""}${refLine}`);
+      } else {
+        toast.success(`Send recorded — ref ${data.reference ?? ""}${refLine}`);
       }
       setPhone("");
       router.refresh();

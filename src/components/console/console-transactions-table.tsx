@@ -16,22 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConsoleSendStatusFilter } from "@/lib/console/send";
 import type { ConsoleSendRow } from "@/lib/console/send";
+import { consoleStatusBadgeVariant, consoleStatusDisplayLabel } from "@/lib/console/status";
 import { formatConsoleData } from "@/lib/console/units";
 import { formatPhone } from "@/lib/format";
 import { consoleNavHref } from "@/lib/platform/console-host";
 
-const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  completed: "success",
-  processing: "warning",
-  pending: "neutral",
-  failed: "danger",
-  refunded: "neutral",
-};
-
 const TABS: { id: ConsoleSendStatusFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "completed", label: "Completed" },
-  { id: "processing", label: "Pending" },
+  { id: "completed", label: "Delivered" },
+  { id: "undelivered", label: "Undelivered" },
+  { id: "processing", label: "Processing" },
   { id: "failed", label: "Failed" },
 ];
 
@@ -115,7 +109,9 @@ export function ConsoleTransactionsTable({
                     {format(new Date(row.createdAt), "yyyy-MM-dd HH:mm")}
                   </AdminTd>
                   <AdminTd>
-                    <Badge variant={STATUS_VARIANT[row.status] ?? "neutral"}>{row.status}</Badge>
+                    <Badge variant={consoleStatusBadgeVariant(row)}>
+                      {consoleStatusDisplayLabel(row)}
+                    </Badge>
                     {row.supplierError && (
                       <p className="mt-1 max-w-[200px] truncate text-[11px] text-rose-300">
                         {row.supplierError}

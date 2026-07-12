@@ -60,6 +60,7 @@ export async function POST(request: Request) {
     reference: result.send.reference,
     supplier_reference: result.send.supplierReference,
     status: result.send.status,
+    supplier_status: result.send.supplierStatus,
     amount_mb: result.send.amountMb,
     balance_after_mb: result.send.balanceAfterMb,
   });

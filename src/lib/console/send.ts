@@ -9,6 +9,8 @@ import {
   getOrCreateConsoleAccount,
 } from "@/lib/console/account";
 import { maybeNotifyConsoleLowBalance } from "@/lib/console/notify";
+import { reconcileStuckConsoleSends } from "@/lib/console/reconcile";
+import { isConsoleSendApiProcessing, isConsoleSendAwaitingManual } from "@/lib/console/status";
 import { generateConsoleReference } from "@/lib/console/units";
 import { assertConsoleSendNetwork } from "@/lib/console/networks";
 
@@ -124,7 +126,7 @@ export async function sendConsoleBundle(params: {
     await service
       .from("console_send_ledger")
       .update({
-        status: "processing",
+        status: "pending",
         supplier: supplier.id,
         supplier_status: "awaiting_manual",
         supplier_error: null,
@@ -137,7 +139,7 @@ export async function sendConsoleBundle(params: {
         ...(inserted as Record<string, unknown>),
         supplier: supplier.id,
         supplier_status: "awaiting_manual",
-        status: "processing",
+        status: "pending",
       }),
     };
   }
@@ -210,7 +212,13 @@ export interface PaginatedConsoleSends {
   pageSize: number;
 }
 
-export type ConsoleSendStatusFilter = "all" | "completed" | "processing" | "pending" | "failed";
+export type ConsoleSendStatusFilter =
+  | "all"
+  | "completed"
+  | "undelivered"
+  | "processing"
+  | "pending"
+  | "failed";
 
 export async function fetchConsoleSends(vendorId: string, limit = 50): Promise<ConsoleSendRow[]> {
   const result = await fetchConsoleSendsPaginated(vendorId, { page: 1, pageSize: limit });
@@ -230,6 +238,7 @@ export async function fetchConsoleSendsPaginated(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const service = createServiceClient();
+  await reconcileStuckConsoleSends(vendorId);
 
   let query = service
     .from("console_send_ledger")
@@ -240,7 +249,17 @@ export async function fetchConsoleSendsPaginated(
     .eq("vendor_id", vendorId);
 
   if (opts.status && opts.status !== "all") {
-    query = query.eq("status", opts.status);
+    if (opts.status === "completed") {
+      query = query.eq("status", "completed");
+    } else if (opts.status === "failed") {
+      query = query.eq("status", "failed");
+    } else if (opts.status === "undelivered" || opts.status === "pending") {
+      query = query.or("status.eq.pending,supplier_status.eq.awaiting_manual");
+    } else if (opts.status === "processing") {
+      query = query.eq("status", "processing").neq("supplier_status", "awaiting_manual");
+    } else {
+      query = query.eq("status", opts.status);
+    }
   }
 
   const { data, count, error } = await query
@@ -249,9 +268,17 @@ export async function fetchConsoleSendsPaginated(
 
   if (error) return { rows: [], total: 0, page, pageSize };
 
+  let rows = (data ?? []).map((row) => mapSendRow(vendorId, row as Record<string, unknown>));
+
+  if (opts.status === "undelivered" || opts.status === "pending") {
+    rows = rows.filter((row) => isConsoleSendAwaitingManual(row));
+  } else if (opts.status === "processing") {
+    rows = rows.filter((row) => isConsoleSendApiProcessing(row));
+  }
+
   return {
-    rows: (data ?? []).map((row) => mapSendRow(vendorId, row as Record<string, unknown>)),
-    total: count ?? 0,
+    rows,
+    total: count ?? rows.length,
     page,
     pageSize,
   };

@@ -11,9 +11,16 @@ import { isConsoleHost } from "@/lib/platform/console-host";
 export const dynamic = "force-dynamic";
 
 function parseStatus(raw: string | undefined): ConsoleSendStatusFilter {
-  if (raw === "completed" || raw === "processing" || raw === "pending" || raw === "failed") {
-    return raw === "pending" ? "processing" : raw;
+  if (
+    raw === "completed" ||
+    raw === "undelivered" ||
+    raw === "processing" ||
+    raw === "failed"
+  ) {
+    return raw;
   }
+  // Legacy tab URLs
+  if (raw === "pending") return "undelivered";
   return "all";
 }
 
