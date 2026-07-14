@@ -48,7 +48,7 @@ export function catalogueForBulkNetwork(
   });
 }
 
-/** Parse size text: 2gb, 2gig, 1024mb, or plain 2 (= 2GB). */
+/** Parse size text: 2gb, 2gig, 1000mb, or plain 2 (= 2GB). 1 GB = 1000 MB. */
 export function parseDataSizeToMb(raw: string): number | null {
   const s = raw.trim().toLowerCase().replace(/\s+/g, "");
   if (!s) return null;
@@ -57,10 +57,10 @@ export function parseDataSizeToMb(raw: string): number | null {
   if (mbMatch) return Math.round(parseFloat(mbMatch[1]));
 
   const gbMatch = s.match(/^(\d+(?:\.\d+)?)(?:gb|gig)$/);
-  if (gbMatch) return Math.round(parseFloat(gbMatch[1]) * 1024);
+  if (gbMatch) return Math.round(parseFloat(gbMatch[1]) * 1000);
 
   const plain = s.match(/^(\d+(?:\.\d+)?)$/);
-  if (plain) return Math.round(parseFloat(plain[1]) * 1024);
+  if (plain) return Math.round(parseFloat(plain[1]) * 1000);
 
   return null;
 }
@@ -69,9 +69,15 @@ function findBundleForSize(
   catalogue: WholesaleBundle[],
   dataMb: number,
 ): WholesaleBundle | undefined {
-  const exact = catalogue.filter((b) => b.dataMb === dataMb);
+  // Legacy catalogue rows may store binary MB (1024 = 1GB); a "1gb" paste is
+  // now 1000 MB, so also accept the binary equivalent of the same GB size.
+  const binaryMb = dataMb % 1000 === 0 ? (dataMb / 1000) * 1024 : null;
+  const exact = catalogue.filter(
+    (b) => b.dataMb === dataMb || (binaryMb !== null && b.dataMb === binaryMb),
+  );
   if (exact.length === 0) return undefined;
   return (
+    exact.find((b) => b.dataMb === dataMb && b.popular) ??
     exact.find((b) => b.popular) ??
     exact.sort((a, b) => a.validityDays - b.validityDays)[0]
   );
@@ -220,7 +226,7 @@ function resolveEntry(
 }
 
 function formatSizeLabel(dataMb: number): string {
-  if (dataMb >= 1024 && dataMb % 1024 === 0) return `${dataMb / 1024}GB`;
+  if (dataMb >= 1000 && dataMb % 1000 === 0) return `${dataMb / 1000}GB`;
   return `${dataMb}MB`;
 }
 

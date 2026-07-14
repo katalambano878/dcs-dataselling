@@ -1,11 +1,11 @@
-/** Plain GB number for bulk paste/export (no "GB" suffix). */
+/** Plain GB number for bulk paste/export (no "GB" suffix). 1 GB = 1000 MB. */
 export function dataMbToVolumeGb(dataMb: number): number {
   if (!dataMb || dataMb <= 0) return 0;
-  if (dataMb >= 1024) {
-    const gb = dataMb / 1024;
+  if (dataMb >= 1000) {
+    const gb = dataMb / 1000;
     return gb % 1 === 0 ? gb : Math.round(gb * 10) / 10;
   }
-  return Math.round((dataMb / 1024) * 100) / 100;
+  return Math.round((dataMb / 1000) * 100) / 100;
 }
 
 export function networkPackageLabel(network: string): string {

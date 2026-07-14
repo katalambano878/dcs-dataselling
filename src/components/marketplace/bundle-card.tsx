@@ -35,7 +35,7 @@ export function BundleCard({
       ? Math.round(((bundle.originalPrice - bundle.price) / bundle.originalPrice) * 100)
       : null;
 
-  const pricePerGB = bundle.dataMb > 0 ? bundle.price / (bundle.dataMb / 1024) : 0;
+  const pricePerGB = bundle.dataMb > 0 ? bundle.price / (bundle.dataMb / 1000) : 0;
 
   return (
     <Link

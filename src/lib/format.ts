@@ -6,9 +6,11 @@ export function formatGHS(amount: number): string {
   }).format(amount);
 }
 
+/** Platform rule: 1 GB = 1000 MB (decimal), so 3000 MB shows as 3GB. */
 export function formatDataAmount(mb: number): string {
-  if (mb >= 1024) {
-    const gb = mb / 1024;
+  if (mb >= 1000) {
+    // Round to 1 decimal so legacy binary sizes (1024, 2048…) show clean GB.
+    const gb = Math.round((mb / 1000) * 10) / 10;
     return gb % 1 === 0 ? `${gb}GB` : `${gb.toFixed(1)}GB`;
   }
   return `${mb}MB`;

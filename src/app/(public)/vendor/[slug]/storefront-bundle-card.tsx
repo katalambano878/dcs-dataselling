@@ -45,7 +45,7 @@ const NETWORK_STYLE: Record<
 export function StorefrontBundleCard({ bundle, className }: Props) {
   const network = NETWORK_STYLE[bundle.network];
   const dataAmount = formatDataAmount(bundle.dataMb);
-  const pricePerGB = bundle.dataMb > 0 ? bundle.price / (bundle.dataMb / 1024) : 0;
+  const pricePerGB = bundle.dataMb > 0 ? bundle.price / (bundle.dataMb / 1000) : 0;
   const savings =
     bundle.originalPrice && bundle.originalPrice > bundle.price
       ? Math.round(

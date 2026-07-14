@@ -50,6 +50,12 @@ function pricesFromRow(row: AdminWholesaleRow): WholesalePriceMatrix {
 
 type NetworkFilter = "all" | NetworkId;
 
+/** Platform rule: 1 GB = 1000 MB. Preset picks for the Add bundle form. */
+const DATA_SIZE_PRESETS: { label: string; mb: number }[] = [
+  { label: "500MB", mb: 500 },
+  ...Array.from({ length: 15 }, (_, i) => ({ label: `${i + 1}GB`, mb: (i + 1) * 1000 })),
+];
+
 function tierLadderWarning(prices: WholesalePriceMatrix): string | null {
   if (prices.costPrice > prices.agentProPrice) {
     return "Cost must be ≤ Pro Agent price.";
@@ -81,10 +87,11 @@ export function WholesaleAdmin({ bundles, wishlistIds = [] }: Props) {
     for (const row of bundles) counts[row.network]++;
     return counts;
   }, [bundles]);
+  const [customDataMb, setCustomDataMb] = useState(false);
   const [newBundle, setNewBundle] = useState({
     network: "mtn" as "mtn" | "telecel" | "at",
     name: "",
-    dataMb: 1024,
+    dataMb: 1000,
     validityDays: 30,
     minMarkup: 0.5,
     productLine: "standard" as "standard" | "ishare" | "bigtime",
@@ -243,15 +250,37 @@ export function WholesaleAdmin({ bundles, wishlistIds = [] }: Props) {
               />
             </label>
             <label className="text-xs font-medium text-muted">
-              Data (MB)
-              <input
-                type="number"
+              Data size (1GB = 1000MB)
+              <select
                 className="mt-1 flex h-9 w-full rounded-lg border border-border px-2.5 text-sm"
-                value={newBundle.dataMb}
-                onChange={(e) =>
-                  setNewBundle((b) => ({ ...b, dataMb: Number(e.target.value) }))
-                }
-              />
+                value={customDataMb ? "custom" : String(newBundle.dataMb)}
+                onChange={(e) => {
+                  if (e.target.value === "custom") {
+                    setCustomDataMb(true);
+                    return;
+                  }
+                  setCustomDataMb(false);
+                  setNewBundle((b) => ({ ...b, dataMb: Number(e.target.value) }));
+                }}
+              >
+                {DATA_SIZE_PRESETS.map((opt) => (
+                  <option key={opt.mb} value={opt.mb}>
+                    {opt.label}
+                  </option>
+                ))}
+                <option value="custom">Custom (MB)…</option>
+              </select>
+              {customDataMb && (
+                <input
+                  type="number"
+                  className="mt-1 flex h-9 w-full rounded-lg border border-border px-2.5 text-sm"
+                  value={newBundle.dataMb}
+                  placeholder="Enter MB e.g. 2500"
+                  onChange={(e) =>
+                    setNewBundle((b) => ({ ...b, dataMb: Number(e.target.value) }))
+                  }
+                />
+              )}
             </label>
             <label className="text-xs font-medium text-muted">
               Validity (days)

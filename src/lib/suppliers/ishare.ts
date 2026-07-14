@@ -68,18 +68,16 @@ export function normalizeIshareMsisdn(raw: string): string | null {
  * Map an internal volume to the iShare `data` field.
  *
  * VERIFIED LIVE (2026-07-10): `data` is in MB — a push of data=50 deducted
- * exactly 50 from the merchant balance (4,194,254 → 4,194,204). The balance
- * itself is binary MB (4,194,304 = 4 TB), so a 1GB send must push 1024.
+ * exactly 50 from the merchant balance (4,194,254 → 4,194,204).
  *
- * Console sends store decimal MB (1000 = 1GB) while catalogue orders store
- * binary MB (1024 = 1GB), so only console volumes need converting — same
- * split the railway supplier uses.
+ * PLATFORM RULE (admin, 2026-07-14): 1 GB = 1000 MB everywhere. A 1GB sale
+ * pushes exactly 1000 — never 1024, which silently over-debits the merchant
+ * balance by 2.4% per send.
  */
 export function volumeDataFromMb(volumeMb: number, scope: SupplierOrderScope): string {
+  void scope;
   if (!Number.isFinite(volumeMb) || volumeMb <= 0) return "0";
-  const binaryMb =
-    scope === "console_send" ? Math.round((volumeMb / 1000) * 1024) : Math.round(volumeMb);
-  return String(Math.max(1, binaryMb));
+  return String(Math.max(1, Math.round(volumeMb)));
 }
 
 function extractError(parsed: unknown, fallback: string): string {

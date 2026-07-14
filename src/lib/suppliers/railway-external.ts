@@ -158,7 +158,9 @@ function detectNetworkFromText(text: string): SupplierNetworkSlug | null {
 }
 
 function extractTargetGb(volumeMb: number): number {
-  const gb = volumeMb / 1024;
+  // Platform rule: 1 GB = 1000 MB. Legacy 1024-based bundles still round to
+  // the same target (1024/1000 → 1GB).
+  const gb = volumeMb / 1000;
   if (gb <= 0.75) return 1;
   return Math.round(gb);
 }
@@ -252,10 +254,8 @@ export async function submitSingleOrder(
     return { ok: false, status: 0, error };
   }
 
-  const volumeForCatalogue =
-    params.scope === "console_send"
-      ? Math.round((params.volumeMb / 1000) * 1024)
-      : params.volumeMb;
+  // Platform rule: 1 GB = 1000 MB everywhere — no binary conversion.
+  const volumeForCatalogue = params.volumeMb;
 
   const resolved = await resolveRailwayProductId(params.network, volumeForCatalogue);
   if ("error" in resolved) {

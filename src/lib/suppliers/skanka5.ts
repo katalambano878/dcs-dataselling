@@ -88,12 +88,15 @@ export function normalizeMsisdn(raw: string): string | null {
 }
 
 /**
- * Map our catalogue `data_mb` (binary GB, e.g. 1024 = 1GB) to Skanka5 `volume_mb`
- * values from `/fetch-data-packages` (decimal GB × 1000, e.g. 1GB → 1000).
+ * Map our catalogue `data_mb` to Skanka5 `volume_mb` values from
+ * `/fetch-data-packages` (decimal GB × 1000, e.g. 1GB → 1000).
+ *
+ * Platform rule: 1 GB = 1000 MB. Legacy binary bundles (1024, 2048…) still
+ * round to the same decimal GB.
  */
 export function toSkanka5VolumeMb(dataMb: number): number {
   if (!Number.isFinite(dataMb) || dataMb <= 0) return 0;
-  return Math.round(dataMb / 1024) * 1000;
+  return Math.round(dataMb / 1000) * 1000;
 }
 
 function extractApiError(parsed: unknown, status: number): string {

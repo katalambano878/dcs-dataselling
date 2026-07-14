@@ -97,14 +97,14 @@ export async function fetchVendorTodayStats(vendorId: string): Promise<VendorTod
   for (const o of customerRows) {
     if (o.status !== "fulfilled" && o.status !== "paid" && o.status !== "processing") continue;
     const b = Array.isArray(o.bundles) ? o.bundles[0] : o.bundles;
-    if (b?.data_mb) gbSold += b.data_mb / 1024;
+    if (b?.data_mb) gbSold += b.data_mb / 1000;
   }
   for (const o of wholesaleRows) {
     for (const it of o.wholesale_order_items ?? []) {
       const wb = Array.isArray(it.wholesale_bundles)
         ? it.wholesale_bundles[0]
         : it.wholesale_bundles;
-      if (wb?.data_mb) gbSold += (wb.data_mb * (it.quantity ?? 1)) / 1024;
+      if (wb?.data_mb) gbSold += (wb.data_mb * (it.quantity ?? 1)) / 1000;
     }
   }
 
