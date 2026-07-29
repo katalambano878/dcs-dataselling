@@ -86,8 +86,16 @@ export default async function SupplierConsolePage() {
   ];
 
   const railwayEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
-    { name: "RAILWAY_EXTERNAL_API_KEY", present: railwayConfigured, required: true },
-    { name: "RAILWAY_EXTERNAL_BASE_URL", present: Boolean(process.env.RAILWAY_EXTERNAL_BASE_URL), required: false },
+    {
+      name: "RAILWAY_EXTERNAL_API_KEY",
+      present: Boolean(process.env.RAILWAY_EXTERNAL_API_KEY?.trim()),
+      required: true,
+    },
+    {
+      name: "RAILWAY_EXTERNAL_BASE_URL",
+      present: Boolean(process.env.RAILWAY_EXTERNAL_BASE_URL?.trim()),
+      required: true,
+    },
   ];
 
   const envChecks: Array<{ name: string; present: boolean; required: boolean }> = [
@@ -170,6 +178,7 @@ export default async function SupplierConsolePage() {
           skanka5Configured={configured}
           sbhConfigured={sbhConfigured}
           ishareConfigured={ishareConfigured}
+          railwayConfigured={railwayConfigured}
         />
         {manualNetworks > 0 && (
           <AdminAlert
@@ -269,22 +278,27 @@ export default async function SupplierConsolePage() {
 
       <AdminSection
         title="Railway API (external supplier)"
-        description="Connect to backend-production Railway — products, orders, and status polling (no webhook)."
+        description="Outbound wholesale API — products, orders, and status polling (no webhook)."
         icon={Cable}
       >
         <div className="flex flex-wrap gap-1.5">
-          <AdminStatusBadge ok={railwayConfigured} label="API key" />
+          <AdminStatusBadge ok={railwayConfigured} label="configured" />
         </div>
         <AdminAlert
           tone={railwayConfigured ? "success" : "warning"}
-          title={railwayConfigured ? "Railway API key detected" : "RAILWAY_EXTERNAL_API_KEY not set"}
+          title={
+            railwayConfigured
+              ? "Railway API ready"
+              : "Railway API needs API key + live BASE_URL"
+          }
         >
           <AdminEnvCheckList items={railwayEnvChecks} />
           <p className="mt-2 text-xs text-muted-foreground">
-            Base URL defaults to{" "}
-            <code>https://backend-production-1d8b.up.railway.app/api/external</code>. Override with{" "}
-            <code>RAILWAY_EXTERNAL_BASE_URL</code>. Map products with{" "}
-            <code>RAILWAY_PRODUCT_ID_MTN_1GB</code> etc. if auto-match fails.
+            Set <code>RAILWAY_EXTERNAL_BASE_URL</code> to the live host ending in{" "}
+            <code>/api/external</code>. The old{" "}
+            <code>backend-production-1d8b.up.railway.app</code> host is dead (Railway: Application
+            not found) — that is why Telecel/MTN orders fail when Railway is selected. Map products
+            with <code>RAILWAY_PRODUCT_ID_TELECEL_5GB</code> etc. if auto-match fails.
           </p>
         </AdminAlert>
       </AdminSection>

@@ -69,7 +69,15 @@ export default async function ConsoleCreditsPage({
                 {result.rows.map((row) => (
                   <AdminTr key={row.id}>
                     <AdminTd>{vendor?.businessName ?? "—"}</AdminTd>
-                    <AdminTd className="font-medium">{formatConsoleData(row.amountMb)}</AdminTd>
+                    <AdminTd
+                      className={
+                        row.amountMb < 0
+                          ? "font-medium text-red-300"
+                          : "font-medium text-emerald-300"
+                      }
+                    >
+                      {formatConsoleData(row.amountMb)}
+                    </AdminTd>
                     <AdminTd className="whitespace-nowrap text-white/55">
                       {format(new Date(row.createdAt), "yyyy-MM-dd HH:mm")}
                     </AdminTd>

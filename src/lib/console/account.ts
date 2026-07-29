@@ -2,7 +2,10 @@ import "server-only";
 
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { notifyConsoleCreditLoaded } from "@/lib/console/notify";
-import { generateConsoleCreditReference } from "@/lib/console/units";
+import {
+  generateConsoleCreditReference,
+  generateConsoleDebitReference,
+} from "@/lib/console/units";
 
 export interface VendorConsoleAccount {
   vendorId: string;
@@ -129,6 +132,90 @@ export async function allocateConsoleCredit(params: {
   });
 
   return { ok: true, amountMb: params.amountMb, balanceAfterMb: next, reference };
+}
+
+/**
+ * Admin correction: remove wrongly allocated GB from a console account.
+ * Writes a negative ledger row; does not count as a send.
+ */
+export type DebitConsoleCreditResult =
+  | { ok: true; amountMb: number; balanceAfterMb: number; reference: string }
+  | { ok: false; error: string };
+
+export async function debitConsoleCredit(params: {
+  vendorId: string;
+  amountMb: number;
+  note?: string;
+  createdBy?: string;
+  reference?: string;
+}): Promise<DebitConsoleCreditResult> {
+  if (!hasSupabaseConfig()) return { ok: false, error: "Not configured" };
+  if (params.amountMb <= 0) return { ok: false, error: "Amount must be positive" };
+
+  const service = createServiceClient();
+  await getOrCreateConsoleAccount(params.vendorId);
+
+  const reference = params.reference ?? generateConsoleDebitReference();
+
+  const { data: dup } = await service
+    .from("console_credit_ledger")
+    .select("id")
+    .eq("vendor_id", params.vendorId)
+    .eq("reference", reference)
+    .maybeSingle();
+  if (dup) return { ok: false, error: "Duplicate debit reference" };
+
+  const { data: acct } = await service
+    .from("vendor_console_accounts")
+    .select("balance_mb")
+    .eq("vendor_id", params.vendorId)
+    .single();
+
+  const current = Number((acct as { balance_mb: number } | null)?.balance_mb ?? 0);
+  if (current < params.amountMb) {
+    return {
+      ok: false,
+      error: `Insufficient console balance (have ${current}MB, trying to debit ${params.amountMb}MB)`,
+    };
+  }
+
+  const next = +(current - params.amountMb).toFixed(2);
+  const note =
+    params.note?.trim() ||
+    `Admin debit correction (−${params.amountMb}MB)`;
+
+  const { error: ledgerErr } = await service.from("console_credit_ledger").insert({
+    vendor_id: params.vendorId,
+    amount_mb: -params.amountMb,
+    balance_after_mb: next,
+    reference,
+    note,
+    created_by: params.createdBy ?? null,
+  });
+
+  if (ledgerErr) return { ok: false, error: ledgerErr.message };
+
+  const { data: updated, error: updErr } = await service
+    .from("vendor_console_accounts")
+    .update({
+      balance_mb: next,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("vendor_id", params.vendorId)
+    .gte("balance_mb", params.amountMb)
+    .select("balance_mb")
+    .maybeSingle();
+
+  if (updErr || !updated) {
+    return { ok: false, error: updErr?.message ?? "Could not debit console balance" };
+  }
+
+  return {
+    ok: true,
+    amountMb: params.amountMb,
+    balanceAfterMb: Number((updated as { balance_mb: number }).balance_mb),
+    reference,
+  };
 }
 
 export async function debitConsoleBalance(

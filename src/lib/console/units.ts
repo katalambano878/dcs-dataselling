@@ -9,17 +9,19 @@ export function mbToGb(mb: number): number {
   return +(mb / MB_PER_GB).toFixed(3);
 }
 
-/** Human label e.g. 500MB, 1GB, 100GB */
+/** Human label e.g. 500MB, 1GB, 100GB, or -5GB for debits */
 export function formatConsoleData(mb: number): string {
   const n = Number(mb);
-  if (!Number.isFinite(n) || n <= 0) return "0MB";
-  if (n >= MB_PER_GB && n % MB_PER_GB === 0) {
-    return `${n / MB_PER_GB}GB`;
+  if (!Number.isFinite(n) || n === 0) return "0MB";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (abs >= MB_PER_GB && abs % MB_PER_GB === 0) {
+    return `${sign}${abs / MB_PER_GB}GB`;
   }
-  if (n >= MB_PER_GB) {
-    return `${mbToGb(n)}GB`;
+  if (abs >= MB_PER_GB) {
+    return `${sign}${mbToGb(abs)}GB`;
   }
-  return `${n % 1 === 0 ? n : n.toFixed(1)}MB`;
+  return `${sign}${abs % 1 === 0 ? abs : abs.toFixed(1)}MB`;
 }
 
 export function parseConsoleAmount(value: string, unit: "gb" | "mb"): number | null {
@@ -41,6 +43,12 @@ export function generateConsoleCreditReference(): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `DCS-CON-CREDIT-${date}-${rand}`;
+}
+
+export function generateConsoleDebitReference(): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `DCS-CON-DEBIT-${date}-${rand}`;
 }
 
 /** Common send sizes (MB) matching typical reseller consoles. */
