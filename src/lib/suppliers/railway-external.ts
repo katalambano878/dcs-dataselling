@@ -5,17 +5,27 @@ import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
  * Railway external wholesale API (outbound supplier).
- *   base: RAILWAY_EXTERNAL_BASE_URL (default backend-production Railway URL)
+ *   base: RAILWAY_EXTERNAL_BASE_URL (required — must end with /api/external)
  *   auth: x-api-key header
  *   GET  /products
  *   POST /orders
  *   GET  /orders/:orderId
  *   POST /orders/status
+ *
+ * NOTE: The old default host backend-production-1d8b.up.railway.app is gone
+ * (Railway returns "Application not found"). Always set BASE_URL explicitly.
  */
 
-const BASE_URL =
-  process.env.RAILWAY_EXTERNAL_BASE_URL?.trim().replace(/\/$/, "") ??
+/** Legacy host — kept only so we can surface a clear error if still configured. */
+const DEAD_DEFAULT_BASE =
   "https://backend-production-1d8b.up.railway.app/api/external";
+
+export function getRailwayExternalBaseUrl(): string | null {
+  const fromEnv = process.env.RAILWAY_EXTERNAL_BASE_URL?.trim().replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  // Do not silently use the dead default — callers must set BASE_URL.
+  return null;
+}
 
 export interface RailwayProduct {
   id: string | number;
@@ -64,7 +74,9 @@ let productCache: { fetchedAt: number; products: RailwayProduct[] } | null = nul
 const PRODUCT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export function isRailwayExternalConfigured(): boolean {
-  return Boolean(process.env.RAILWAY_EXTERNAL_API_KEY?.trim());
+  return Boolean(
+    process.env.RAILWAY_EXTERNAL_API_KEY?.trim() && getRailwayExternalBaseUrl(),
+  );
 }
 
 export function normalizeRailwayPhone(raw: string): string | null {
@@ -96,6 +108,27 @@ async function logSupplierEvent(input: LogInput): Promise<void> {
   }
 }
 
+function extractRailwayError(parsed: unknown, status: number): string {
+  const message =
+    parsed && typeof parsed === "object" && "message" in parsed
+      ? String((parsed as { message: unknown }).message)
+      : undefined;
+  const error =
+    parsed && typeof parsed === "object" && "error" in parsed
+      ? String((parsed as { error: unknown }).error)
+      : undefined;
+  const raw = error ?? message ?? `HTTP ${status}`;
+
+  // Railway edge gateway when the deployment/service no longer exists.
+  if (/application not found/i.test(raw)) {
+    return (
+      "Railway host is down (Application not found). " +
+      "Set RAILWAY_EXTERNAL_BASE_URL to the current /api/external base URL."
+    );
+  }
+  return raw;
+}
+
 async function call<T>(
   method: "GET" | "POST",
   path: string,
@@ -106,6 +139,27 @@ async function call<T>(
     return { ok: false, status: 0, error: "RAILWAY_EXTERNAL_API_KEY not set" };
   }
 
+  const baseUrl = getRailwayExternalBaseUrl();
+  if (!baseUrl) {
+    return {
+      ok: false,
+      status: 0,
+      error:
+        "RAILWAY_EXTERNAL_BASE_URL not set. " +
+        `The old default (${DEAD_DEFAULT_BASE}) no longer exists on Railway.`,
+    };
+  }
+
+  if (baseUrl === DEAD_DEFAULT_BASE || baseUrl.startsWith("https://backend-production-1d8b.up.railway.app")) {
+    return {
+      ok: false,
+      status: 0,
+      error:
+        "RAILWAY_EXTERNAL_BASE_URL points at a dead Railway app " +
+        "(backend-production-1d8b). Update it to the live /api/external URL.",
+    };
+  }
+
   const headers: Record<string, string> = {
     "x-api-key": apiKey,
     Accept: "application/json",
@@ -113,7 +167,7 @@ async function call<T>(
   if (init.body !== undefined) headers["Content-Type"] = "application/json";
 
   try {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await fetch(`${baseUrl}${path}`, {
       method,
       headers,
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -128,15 +182,12 @@ async function call<T>(
     }
 
     if (!res.ok) {
-      const errMsg =
-        (parsed && typeof parsed === "object" && "error" in parsed
-          ? String((parsed as { error: unknown }).error)
-          : undefined) ??
-        (parsed && typeof parsed === "object" && "message" in parsed
-          ? String((parsed as { message: unknown }).message)
-          : undefined) ??
-        `HTTP ${res.status}`;
-      return { ok: false, status: res.status, error: errMsg, data: parsed };
+      return {
+        ok: false,
+        status: res.status,
+        error: extractRailwayError(parsed, res.status),
+        data: parsed,
+      };
     }
     return { ok: true, status: res.status, data: parsed as T };
   } catch (err) {

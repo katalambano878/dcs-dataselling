@@ -30,6 +30,7 @@ interface Props {
   skanka5Configured: boolean;
   sbhConfigured: boolean;
   ishareConfigured: boolean;
+  railwayConfigured?: boolean;
 }
 
 export function SupplierRoutingControls({
@@ -39,6 +40,7 @@ export function SupplierRoutingControls({
   skanka5Configured,
   sbhConfigured,
   ishareConfigured,
+  railwayConfigured = false,
 }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<SupplierNetworkSlug | null>(null);
@@ -57,6 +59,10 @@ export function SupplierRoutingControls({
     }
     if (supplier === "ishare" && !ishareConfigured) {
       toast.error("Set ISHARE_API_KEY first");
+      return;
+    }
+    if (supplier === "railwayexternal" && !railwayConfigured) {
+      toast.error("Set RAILWAY_EXTERNAL_API_KEY and RAILWAY_EXTERNAL_BASE_URL first");
       return;
     }
 

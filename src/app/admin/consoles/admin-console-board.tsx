@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Monitor, Plus } from "lucide-react";
+import { Minus, Monitor, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminDataTable,
@@ -20,6 +20,8 @@ import type { ConsolePricingTier } from "@/lib/console/pricing";
 import { formatConsoleData, gbToMb } from "@/lib/console/units";
 import { cn } from "@/lib/utils";
 
+type PanelMode = "credit" | "debit";
+
 interface Props {
   vendors: AdminConsoleVendorRow[];
   tiers: ConsolePricingTier[];
@@ -31,7 +33,8 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [allocVendor, setAllocVendor] = useState<string | null>(null);
+  const [panelVendor, setPanelVendor] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<PanelMode>("credit");
   const [amountGb, setAmountGb] = useState("100");
   const [note, setNote] = useState("");
 
@@ -44,6 +47,22 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
         v.slug.toLowerCase().includes(needle),
     );
   }, [initial, q]);
+
+  const panelVendorRow = panelVendor
+    ? initial.find((v) => v.vendorId === panelVendor)
+    : undefined;
+
+  function openPanel(vendorId: string, mode: PanelMode) {
+    setPanelVendor(vendorId);
+    setPanelMode(mode);
+    setAmountGb(mode === "debit" ? "1" : "100");
+    setNote("");
+  }
+
+  function closePanel() {
+    setPanelVendor(null);
+    setNote("");
+  }
 
   async function toggleEnabled(vendorId: string, enabled: boolean) {
     setPending(vendorId);
@@ -83,22 +102,32 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
     }
   }
 
-  async function allocate() {
-    if (!allocVendor) return;
+  async function submitPanel() {
+    if (!panelVendor) return;
     const gb = Number(amountGb);
     if (!Number.isFinite(gb) || gb <= 0) {
       toast.error("Enter a valid GB amount");
       return;
     }
 
-    setPending(`alloc-${allocVendor}`);
+    if (panelMode === "debit" && panelVendorRow) {
+      const needMb = gbToMb(gb);
+      if (needMb > panelVendorRow.balanceMb) {
+        toast.error(
+          `Cannot debit ${formatConsoleData(needMb)} — balance is only ${formatConsoleData(panelVendorRow.balanceMb)}`,
+        );
+        return;
+      }
+    }
+
+    setPending(`${panelMode}-${panelVendor}`);
     try {
       const res = await fetch("/api/admin/console", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "allocate",
-          vendor_id: allocVendor,
+          action: panelMode === "debit" ? "debit" : "allocate",
+          vendor_id: panelVendor,
           amount_gb: gb,
           note: note.trim() || undefined,
         }),
@@ -106,11 +135,14 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
       const data = (await res.json()) as { error?: string; balance_after_mb?: number };
       if (!res.ok) throw new Error(data.error ?? "Failed");
 
+      const amountLabel = formatConsoleData(gbToMb(gb));
+      const balLabel = formatConsoleData(data.balance_after_mb ?? 0);
       toast.success(
-        `Allocated ${gb}GB (${formatConsoleData(gbToMb(gb))}) — new balance ${formatConsoleData(data.balance_after_mb ?? 0)}`,
+        panelMode === "debit"
+          ? `Debited ${amountLabel} — new balance ${balLabel}`
+          : `Allocated ${amountLabel} — new balance ${balLabel}`,
       );
-      setAllocVendor(null);
-      setNote("");
+      closePanel();
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -118,6 +150,8 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
       setPending(null);
     }
   }
+
+  const isDebit = panelMode === "debit";
 
   return (
     <AdminSection title="Agent data consoles" icon={Monitor}>
@@ -136,57 +170,64 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
         </label>
       </div>
 
-      {allocVendor && (
+      {panelVendor && (
         <div
           className={cn(
-            "mb-4 rounded-xl border p-4",
-            vault
-              ? "border-white/10 bg-white/5"
-              : "border-blue-200 bg-blue-50",
+            "admin-console-alloc-panel mb-4 rounded-xl border p-4",
+            isDebit ? "border-red-200 bg-red-50" : "border-blue-200 bg-blue-50",
           )}
         >
           <p
             className={cn(
               "text-sm font-semibold",
-              vault ? "text-white" : "text-blue-900",
+              isDebit ? "text-red-900" : "text-blue-900",
             )}
           >
-            Allocate data credit — {initial.find((v) => v.vendorId === allocVendor)?.businessName}
+            {isDebit ? "Debit console credit" : "Allocate data credit"} —{" "}
+            {panelVendorRow?.businessName}
           </p>
+          {isDebit && panelVendorRow && (
+            <p className="mt-1 text-xs text-red-800">
+              Current balance: {formatConsoleData(panelVendorRow.balanceMb)}. Use this to reverse a
+              wrong allocation.
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className={cn("text-sm", vault && "text-slate-200")}>
+            <label className="text-sm font-medium text-slate-800">
               Amount (GB)
               <Input
                 type="number"
                 step="1"
-                className={cn(
-                  "mt-1 h-9 w-32",
-                  vault && "border-white/10 bg-black/20 text-white",
-                )}
+                min="0"
+                className="admin-console-alloc-input mt-1 h-9 w-32"
                 value={amountGb}
                 onChange={(e) => setAmountGb(e.target.value)}
               />
             </label>
-            <label className={cn("min-w-[200px] flex-1 text-sm", vault && "text-slate-200")}>
-              Note (optional)
+            <label className="min-w-[200px] flex-1 text-sm font-medium text-slate-800">
+              Note {isDebit ? "(recommended)" : "(optional)"}
               <Input
-                className={cn(
-                  "mt-1 h-9",
-                  vault && "border-white/10 bg-black/20 text-white placeholder:text-white/40",
-                )}
+                className="admin-console-alloc-input mt-1 h-9"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. March iShare pool"
+                placeholder={
+                  isDebit ? "e.g. Corrected over-allocation" : "e.g. March iShare pool"
+                }
               />
             </label>
-            <Button size="sm" disabled={pending != null} onClick={() => void allocate()}>
-              Credit console
+            <Button
+              size="sm"
+              variant={isDebit ? "danger" : "default"}
+              disabled={pending != null}
+              onClick={() => void submitPanel()}
+            >
+              {isDebit ? "Debit console" : "Credit console"}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => setAllocVendor(null)}>
+            <Button size="sm" variant="secondary" onClick={closePanel}>
               Cancel
             </Button>
           </div>
-          <p className={cn("mt-2 text-xs", vault ? "text-white/55" : "text-blue-800")}>
+          <p className={cn("mt-2 text-xs", isDebit ? "text-red-800" : "text-blue-800")}>
             1 GB = 1000 MB (decimal).
           </p>
         </div>
@@ -257,10 +298,19 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
                     <Button
                       size="sm"
                       disabled={pending != null}
-                      onClick={() => setAllocVendor(row.vendorId)}
+                      onClick={() => openPanel(row.vendorId, "credit")}
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Allocate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={pending != null || row.balanceMb <= 0}
+                      onClick={() => openPanel(row.vendorId, "debit")}
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                      Debit
                     </Button>
                   </div>
                 </td>

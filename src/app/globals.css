@@ -3591,6 +3591,33 @@ body {
   color: rgba(255, 255, 255, 0.38);
 }
 
+/* Allocate / debit panel is always a light surface — keep inputs dark-on-white. */
+.admin-console-alloc-panel {
+  color: #0f172a;
+}
+.admin-console-alloc-panel label {
+  color: #1e293b;
+}
+.admin-vault-theme .admin-console-alloc-panel input.admin-console-alloc-input,
+.admin-vault-theme .admin-page-content .admin-console-alloc-panel input.admin-console-alloc-input,
+.admin-console-alloc-panel input.admin-console-alloc-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a;
+  caret-color: #0f172a;
+}
+.admin-vault-theme .admin-console-alloc-panel input.admin-console-alloc-input::placeholder,
+.admin-vault-theme .admin-page-content .admin-console-alloc-panel input.admin-console-alloc-input::placeholder,
+.admin-console-alloc-panel input.admin-console-alloc-input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8;
+}
+.admin-console-alloc-panel input.admin-console-alloc-input:focus {
+  border-color: rgba(212, 175, 55, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
 .admin-vault-theme .gold-progress {
   background: rgba(255, 255, 255, 0.08);
 }

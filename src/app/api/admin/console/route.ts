@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { assertAdminApi } from "@/lib/auth/admin-api";
-import { allocateConsoleCredit, setConsoleEnabled } from "@/lib/console/account";
+import {
+  allocateConsoleCredit,
+  debitConsoleCredit,
+  setConsoleEnabled,
+} from "@/lib/console/account";
 import { setConsolePricingTier } from "@/lib/console/pricing";
 import { gbToMb } from "@/lib/console/units";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
@@ -9,6 +13,12 @@ import { hasSupabaseConfig } from "@/lib/supabase/server";
 const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("allocate"),
+    vendor_id: z.string().uuid(),
+    amount_gb: z.number().positive(),
+    note: z.string().max(500).optional(),
+  }),
+  z.object({
+    action: z.literal("debit"),
     vendor_id: z.string().uuid(),
     amount_gb: z.number().positive(),
     note: z.string().max(500).optional(),
@@ -55,12 +65,20 @@ export async function POST(request: Request) {
   }
 
   const amountMb = gbToMb(body.amount_gb);
-  const result = await allocateConsoleCredit({
-    vendorId: body.vendor_id,
-    amountMb,
-    note: body.note,
-    createdBy: auth.userId,
-  });
+  const result =
+    body.action === "debit"
+      ? await debitConsoleCredit({
+          vendorId: body.vendor_id,
+          amountMb,
+          note: body.note,
+          createdBy: auth.userId,
+        })
+      : await allocateConsoleCredit({
+          vendorId: body.vendor_id,
+          amountMb,
+          note: body.note,
+          createdBy: auth.userId,
+        });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
@@ -68,6 +86,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    action: body.action,
     amount_mb: result.amountMb,
     amount_gb: body.amount_gb,
     balance_after_mb: result.balanceAfterMb,
