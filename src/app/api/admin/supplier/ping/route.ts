@@ -19,10 +19,7 @@ export async function POST(request: Request) {
   if (supplierId === "railwayexternal" || supplierId === "railway") {
     if (!isRailwayExternalConfigured()) {
       return NextResponse.json(
-        {
-          error:
-            "Railway API not configured — set RAILWAY_EXTERNAL_API_KEY and RAILWAY_EXTERNAL_BASE_URL (old backend-production-1d8b host is dead)",
-        },
+        { error: "RAILWAY_EXTERNAL_API_KEY not set" },
         { status: 503 },
       );
     }

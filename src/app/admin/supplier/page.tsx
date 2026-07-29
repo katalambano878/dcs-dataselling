@@ -94,7 +94,7 @@ export default async function SupplierConsolePage() {
     {
       name: "RAILWAY_EXTERNAL_BASE_URL",
       present: Boolean(process.env.RAILWAY_EXTERNAL_BASE_URL?.trim()),
-      required: true,
+      required: false,
     },
   ];
 
@@ -288,17 +288,16 @@ export default async function SupplierConsolePage() {
           tone={railwayConfigured ? "success" : "warning"}
           title={
             railwayConfigured
-              ? "Railway API ready"
-              : "Railway API needs API key + live BASE_URL"
+              ? "Railway / NovaMax API key detected"
+              : "RAILWAY_EXTERNAL_API_KEY not set"
           }
         >
           <AdminEnvCheckList items={railwayEnvChecks} />
           <p className="mt-2 text-xs text-muted-foreground">
-            Set <code>RAILWAY_EXTERNAL_BASE_URL</code> to the live host ending in{" "}
-            <code>/api/external</code>. The old{" "}
-            <code>backend-production-1d8b.up.railway.app</code> host is dead (Railway: Application
-            not found) — that is why Telecel/MTN orders fail when Railway is selected. Map products
-            with <code>RAILWAY_PRODUCT_ID_TELECEL_5GB</code> etc. if auto-match fails.
+            Defaults to <code>https://api.novamaxgh.com/api/external</code> (NovaMax). Override with{" "}
+            <code>RAILWAY_EXTERNAL_BASE_URL</code> if needed. Do not use the dead{" "}
+            <code>backend-production-1d8b</code> host. Map products with{" "}
+            <code>RAILWAY_PRODUCT_ID_TELECEL_5GB</code> etc. if auto-match fails.
           </p>
         </AdminAlert>
       </AdminSection>

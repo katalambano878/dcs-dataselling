@@ -62,7 +62,7 @@ export function SupplierRoutingControls({
       return;
     }
     if (supplier === "railwayexternal" && !railwayConfigured) {
-      toast.error("Set RAILWAY_EXTERNAL_API_KEY and RAILWAY_EXTERNAL_BASE_URL first");
+      toast.error("Set RAILWAY_EXTERNAL_API_KEY first");
       return;
     }
 
