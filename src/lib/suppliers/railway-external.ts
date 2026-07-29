@@ -4,27 +4,28 @@ import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
- * Railway external wholesale API (outbound supplier).
- *   base: RAILWAY_EXTERNAL_BASE_URL (required — must end with /api/external)
+ * NovaMax / Railway external wholesale API (outbound supplier).
+ *   base: RAILWAY_EXTERNAL_BASE_URL (default NovaMax API)
  *   auth: x-api-key header
  *   GET  /products
  *   POST /orders
  *   GET  /orders/:orderId
  *   POST /orders/status
  *
- * NOTE: The old default host backend-production-1d8b.up.railway.app is gone
- * (Railway returns "Application not found"). Always set BASE_URL explicitly.
+ * Live: https://api.novamaxgh.com/api/external
+ * Dead: backend-production-1d8b.up.railway.app (Application not found)
  */
 
-/** Legacy host — kept only so we can surface a clear error if still configured. */
+const LIVE_DEFAULT_BASE = "https://api.novamaxgh.com/api/external";
+
+/** Legacy host — blocked explicitly if still set in env. */
 const DEAD_DEFAULT_BASE =
   "https://backend-production-1d8b.up.railway.app/api/external";
 
-export function getRailwayExternalBaseUrl(): string | null {
+export function getRailwayExternalBaseUrl(): string {
   const fromEnv = process.env.RAILWAY_EXTERNAL_BASE_URL?.trim().replace(/\/$/, "");
   if (fromEnv) return fromEnv;
-  // Do not silently use the dead default — callers must set BASE_URL.
-  return null;
+  return LIVE_DEFAULT_BASE;
 }
 
 export interface RailwayProduct {
@@ -74,9 +75,7 @@ let productCache: { fetchedAt: number; products: RailwayProduct[] } | null = nul
 const PRODUCT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export function isRailwayExternalConfigured(): boolean {
-  return Boolean(
-    process.env.RAILWAY_EXTERNAL_API_KEY?.trim() && getRailwayExternalBaseUrl(),
-  );
+  return Boolean(process.env.RAILWAY_EXTERNAL_API_KEY?.trim());
 }
 
 export function normalizeRailwayPhone(raw: string): string | null {
@@ -140,23 +139,17 @@ async function call<T>(
   }
 
   const baseUrl = getRailwayExternalBaseUrl();
-  if (!baseUrl) {
-    return {
-      ok: false,
-      status: 0,
-      error:
-        "RAILWAY_EXTERNAL_BASE_URL not set. " +
-        `The old default (${DEAD_DEFAULT_BASE}) no longer exists on Railway.`,
-    };
-  }
 
-  if (baseUrl === DEAD_DEFAULT_BASE || baseUrl.startsWith("https://backend-production-1d8b.up.railway.app")) {
+  if (
+    baseUrl === DEAD_DEFAULT_BASE ||
+    baseUrl.startsWith("https://backend-production-1d8b.up.railway.app")
+  ) {
     return {
       ok: false,
       status: 0,
       error:
         "RAILWAY_EXTERNAL_BASE_URL points at a dead Railway app " +
-        "(backend-production-1d8b). Update it to the live /api/external URL.",
+        `(backend-production-1d8b). Use ${LIVE_DEFAULT_BASE}`,
     };
   }
 

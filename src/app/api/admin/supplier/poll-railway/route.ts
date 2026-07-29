@@ -11,13 +11,7 @@ export async function POST() {
   }
 
   if (!isRailwayExternalConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          "Railway API not configured — set RAILWAY_EXTERNAL_API_KEY and RAILWAY_EXTERNAL_BASE_URL",
-      },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "RAILWAY_EXTERNAL_API_KEY not set" }, { status: 503 });
   }
 
   try {
