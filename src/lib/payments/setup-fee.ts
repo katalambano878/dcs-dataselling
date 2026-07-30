@@ -52,15 +52,36 @@ export async function verifySetupPaymentWithPaystack(reference: string) {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   if (!secret) return false;
 
-  const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-    headers: { Authorization: `Bearer ${secret}` },
-  });
+  const { fetchWithTimeout } = await import("@/lib/http/fetch-with-timeout");
+  const res = await fetchWithTimeout(
+    `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+    { headers: { Authorization: `Bearer ${secret}` } },
+    15_000,
+  );
   const payload = (await res.json()) as {
     status?: boolean;
-    data?: { status?: string; reference?: string };
+    data?: { status?: string; reference?: string; amount?: number };
   };
 
   if (!payload.status || payload.data?.status !== "success") {
+    return false;
+  }
+
+  const service = createServiceClient();
+  const { data: setup } = await service
+    .from("vendor_setup_payments")
+    .select("amount, status")
+    .eq("reference", reference)
+    .maybeSingle();
+  const row = setup as { amount: number | string; status: string } | null;
+  if (!row || row.status !== "pending") return false;
+  const expectedPesewas = Math.round(Number(row.amount) * 100);
+  const charged = Number(payload.data?.amount ?? NaN);
+  if (!Number.isFinite(expectedPesewas) || Math.abs(charged - expectedPesewas) > 1) {
+    console.error(
+      "[paystack] setup-fee verify amount mismatch",
+      JSON.stringify({ reference, expectedPesewas, charged }),
+    );
     return false;
   }
 

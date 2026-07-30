@@ -1,9 +1,9 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "@/lib/db/client";
 
 /** Reconcile parent wholesale_orders.status from line items after admin bulk edits. */
 export async function syncWholesaleOrderFromItems(
-  service: SupabaseClient,
+  service: DbClient,
   wholesaleOrderId: string,
 ): Promise<void> {
   const { data: items } = await service
@@ -13,17 +13,17 @@ export async function syncWholesaleOrderFromItems(
 
   if (!items?.length) return;
 
-  const statuses = items.map((i) => (i as { status: string }).status);
+  const statuses = items.map((i: Record<string, unknown>) => (i as { status: string }).status);
   const now = new Date().toISOString();
   let next: string | null = null;
 
-  if (statuses.every((s) => s === "fulfilled")) {
+  if (statuses.every((s: string) => s === "fulfilled")) {
     next = "fulfilled";
-  } else if (statuses.some((s) => s === "failed")) {
-    next = statuses.every((s) => s === "failed") ? "failed" : "processing";
-  } else if (statuses.some((s) => s === "processing")) {
+  } else if (statuses.some((s: string) => s === "failed")) {
+    next = statuses.every((s: string) => s === "failed") ? "failed" : "processing";
+  } else if (statuses.some((s: string) => s === "processing")) {
     next = "processing";
-  } else if (statuses.every((s) => s === "queued")) {
+  } else if (statuses.every((s: string) => s === "queued")) {
     next = "queued";
   }
 

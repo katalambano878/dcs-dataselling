@@ -51,7 +51,7 @@ export default async function AdminOperationsPage() {
       .limit(50);
 
     if (data) {
-      queue = data.map((row) => {
+      queue = data.map((row: Record<string, unknown>) => {
         const r = row as {
           id: string;
           reference: string;

@@ -118,7 +118,8 @@ export async function POST(request: Request) {
     }
 
     if (body.provider === "paystack" && process.env.PAYSTACK_SECRET_KEY) {
-      const res = await fetch("https://api.paystack.co/transaction/initialize", {
+      const { fetchWithTimeout } = await import("@/lib/http/fetch-with-timeout");
+      const res = await fetchWithTimeout("https://api.paystack.co/transaction/initialize", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
           channels: ["mobile_money", "card"],
           callback_url: `${process.env.NEXT_PUBLIC_SITE_URL}/orders/${order.id}?ref=${order.reference}`,
         }),
-      });
+      }, 15_000);
       const data = await res.json();
       if (data.status && data.data?.authorization_url) {
         return NextResponse.json({

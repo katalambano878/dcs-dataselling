@@ -5,7 +5,14 @@ import { markSetupPaymentPaid } from "@/lib/payments/setup-fee";
 import { markWalletTopupPaid } from "@/lib/payments/wallet";
 import { markWholesaleOrderPaid } from "@/lib/payments/wholesale-order";
 import { smsWalletTopup } from "@/lib/notifications/sms";
-import { hasSupabaseConfig } from "@/lib/supabase/server";
+import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+
+function amountsMatch(expectedGhs: number | string, chargedPesewas: number): boolean {
+  const expectedPesewas = Math.round(Number(expectedGhs) * 100);
+  if (!Number.isFinite(expectedPesewas) || expectedPesewas <= 0) return false;
+  if (!Number.isFinite(chargedPesewas)) return false;
+  return Math.abs(chargedPesewas - expectedPesewas) <= 1;
+}
 
 export async function POST(request: Request) {
   const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -37,17 +44,58 @@ export async function POST(request: Request) {
 
   if (event.event === "charge.success") {
     const meta = event.data.metadata ?? {};
+    const service = createServiceClient();
+
     if (meta.type === "vendor_setup") {
-      await markSetupPaymentPaid(event.data.reference, event.data.reference);
+      const { data: setup } = await service
+        .from("vendor_setup_payments")
+        .select("amount, status")
+        .eq("reference", event.data.reference)
+        .maybeSingle();
+      const row = setup as { amount: number | string; status: string } | null;
+      if (row?.status === "pending" && amountsMatch(row.amount, event.data.amount)) {
+        await markSetupPaymentPaid(event.data.reference, event.data.reference);
+      } else if (row?.status === "pending") {
+        console.error(
+          "[paystack] setup-fee amount mismatch",
+          JSON.stringify({
+            reference: event.data.reference,
+            expectedGhs: row.amount,
+            charged: event.data.amount,
+          }),
+        );
+      }
       return NextResponse.json({ received: true });
     }
 
     if (meta.type === "wholesale_order") {
+      // Legacy metadata path — wholesale checkout is wallet-debited today.
       await markWholesaleOrderPaid(event.data.reference, event.data.reference);
       return NextResponse.json({ received: true });
     }
 
     if (meta.type === "wallet_topup") {
+      const { data: topupRow } = await service
+        .from("wallet_topups")
+        .select("amount, status")
+        .eq("reference", event.data.reference)
+        .maybeSingle();
+      const row = topupRow as { amount: number | string; status: string } | null;
+      if (!row || row.status !== "pending") {
+        return NextResponse.json({ received: true });
+      }
+      if (!amountsMatch(row.amount, event.data.amount)) {
+        console.error(
+          "[paystack] wallet top-up amount mismatch",
+          JSON.stringify({
+            reference: event.data.reference,
+            expectedGhs: row.amount,
+            charged: event.data.amount,
+          }),
+        );
+        return NextResponse.json({ received: true });
+      }
+
       const topup = await markWalletTopupPaid(event.data.reference, event.data.reference);
       if (topup && topup.notifyPhone) {
         after(() =>

@@ -24,13 +24,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and configure:
+Copy `.env.example` to `.env.local`.
 
-- Supabase (auth + database)
-- Paystack secret & public keys
-- Arkesel API key & sender ID (SMS)
+**Plain Postgres (this staging branch):** set `DATABASE_URL` + `AUTH_JWT_SECRET`. Point `NEXT_PUBLIC_SUPABASE_URL` at the app origin so `/auth/v1` and `/rest/v1` shims work. Also configure Paystack and Arkesel.
 
-Supabase keys are required — the app loads all marketplace, vendor, and admin data from the database.
+**Legacy hosted Supabase:** leave `DATABASE_URL` unset and set the usual Supabase URL/anon/service keys.
+
+See `docs/SUPABASE_TO_POSTGRES_MIGRATION_GUIDE.md` and `FULL_SYSTEM_AUDIT.md`.
 
 ## Routes
 

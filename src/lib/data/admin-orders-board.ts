@@ -349,7 +349,7 @@ export async function fetchAdminOrderBoardRows(
 
     const bundleMap = await fetchStorefrontOrderBundlesBatch(
       service,
-      (data ?? []).map((raw) => (raw as { bundle_id: string }).bundle_id),
+      (data ?? []).map((raw: Record<string, unknown>) => (raw as { bundle_id: string }).bundle_id),
     );
 
     for (const raw of data ?? []) {

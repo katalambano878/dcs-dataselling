@@ -32,7 +32,7 @@ export async function fetchConsoleSupportTickets(vendorId: string): Promise<Cons
     .order("created_at", { ascending: false })
     .limit(50);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       subject: string;
@@ -115,7 +115,7 @@ export async function fetchConsoleFaq(): Promise<ConsoleFaqItem[]> {
     .eq("active", true)
     .order("sort_order", { ascending: true });
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as { id: string; question: string; answer: string };
     return { id: r.id, question: r.question, answer: r.answer };
   });

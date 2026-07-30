@@ -6,6 +6,11 @@ import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { getPostLoginRedirect } from "@/lib/auth/onboarding";
 import { getConsoleHomePath, isConsoleHost } from "@/lib/platform/console-host";
 import { isConsoleStaffRole } from "@/lib/console/admin-access";
+import { isPlainPostgres } from "@/lib/db/mode";
+import {
+  clearPlainPgSessionCookies,
+  setPlainPgSessionCookies,
+} from "@/lib/db/session-cookies";
 import type { UserRole } from "@/types";
 
 export type AuthActionState = {
@@ -35,15 +40,30 @@ export async function signIn(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: error.message === "Invalid login credentials" ? "Invalid email or password." : error.message };
+    return {
+      error:
+        error.message === "Invalid login credentials"
+          ? "Invalid email or password."
+          : error.message,
+    };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (isPlainPostgres() && data.session) {
+    await setPlainPgSessionCookies(data.session);
+  }
+
+  const user =
+    data.user ??
+    (
+      await supabase.auth.getUser(
+        data.session && "access_token" in data.session
+          ? (data.session as { access_token: string }).access_token
+          : undefined,
+      )
+    ).data.user;
 
   if (!user) {
     return { error: "Sign-in failed after authentication." };
@@ -74,5 +94,8 @@ export async function signOut() {
   }
   const supabase = await createClient();
   await supabase.auth.signOut();
+  if (isPlainPostgres()) {
+    await clearPlainPgSessionCookies();
+  }
   redirect("/auth/login");
 }

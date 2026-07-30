@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "@/lib/db/client";
 import type { NetworkId } from "@/lib/constants";
 
 export interface StorefrontOrderBundle {
@@ -50,7 +50,7 @@ function fromListingRow(row: ListingRow): StorefrontOrderBundle | null {
 
 /** Resolve bundle metadata for a storefront order's `bundle_id` (vendor_listings.id in production). */
 export async function fetchStorefrontOrderBundle(
-  service: SupabaseClient,
+  service: DbClient,
   bundleId: string,
 ): Promise<StorefrontOrderBundle | null> {
   const { data: listing } = await service
@@ -82,7 +82,7 @@ export async function fetchStorefrontOrderBundle(
 
 /** Batch-resolve bundle metadata for many storefront orders. */
 export async function fetchStorefrontOrderBundlesBatch(
-  service: SupabaseClient,
+  service: DbClient,
   bundleIds: string[],
 ): Promise<Map<string, StorefrontOrderBundle>> {
   const map = new Map<string, StorefrontOrderBundle>();
@@ -96,7 +96,7 @@ export async function fetchStorefrontOrderBundlesBatch(
 
   const missing: string[] = [];
   for (const id of unique) {
-    const row = (listings ?? []).find((r) => (r as { id: string }).id === id) as
+    const row = (listings ?? []).find((r: Record<string, unknown>) => (r as { id: string }).id === id) as
       | ({ id: string } & ListingRow)
       | undefined;
     if (row) {

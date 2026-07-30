@@ -70,7 +70,7 @@ export async function fetchAllConsolePricingTiers(): Promise<ConsolePricingTier[
     .eq("active", true)
     .order("sort_order", { ascending: true });
 
-  return (data ?? []).map((row) => mapTier(row as Parameters<typeof mapTier>[0]));
+  return (data ?? []).map((row: Record<string, unknown>) => mapTier(row as Parameters<typeof mapTier>[0]));
 }
 
 export async function setConsolePricingTier(vendorId: string, tierId: string | null): Promise<boolean> {

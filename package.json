@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "seed:admin": "node --env-file=.env.local scripts/seed-admin.mjs"
   },
@@ -33,7 +33,10 @@
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -43,6 +46,9 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.11.10",
+    "dotenv-cli": "^7.4.2"
   }
 }

@@ -134,7 +134,7 @@ export async function fetchAdminRewardWithdrawals(): Promise<AdminRewardWithdraw
     .order("created_at", { ascending: false })
     .limit(100);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;
@@ -174,7 +174,7 @@ export async function fetchAdminVendorComplaints(): Promise<AdminComplaintRow[]>
     .order("created_at", { ascending: false })
     .limit(100);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;
@@ -214,7 +214,7 @@ export async function fetchAdminMtnAfaApplications(): Promise<AdminMtnAfaRow[]> 
     .order("submitted_at", { ascending: false })
     .limit(100);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;
@@ -252,7 +252,7 @@ export async function fetchAdminVendorApiKeys(): Promise<AdminVendorApiKeyRow[]>
     .order("created_at", { ascending: false })
     .limit(100);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;
@@ -319,7 +319,7 @@ export async function fetchAdminWalletLedger(limit = 100): Promise<AdminWalletLe
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       amount: number;
@@ -358,7 +358,7 @@ export async function fetchAdminAgentRewardBalances(): Promise<AdminAgentRewardR
     .limit(50);
 
   return (data ?? [])
-    .map((row) => {
+    .map((row: Record<string, unknown>) => {
       const r = row as {
         id: string;
         business_name: string;
@@ -373,7 +373,7 @@ export async function fetchAdminAgentRewardBalances(): Promise<AdminAgentRewardR
         wallet_balance: Number(wallet?.balance ?? 0),
       };
     })
-    .filter((r) => r.reward_balance > 0 || r.wallet_balance > 0);
+    .filter((r: AdminAgentRewardRow) => r.reward_balance > 0 || r.wallet_balance > 0);
 }
 
 export async function fetchAdminWholesaleOrders(limit = 50): Promise<AdminWholesaleOrderRow[]> {
@@ -390,7 +390,7 @@ export async function fetchAdminWholesaleOrders(limit = 50): Promise<AdminWholes
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       reference: string;

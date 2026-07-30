@@ -23,6 +23,9 @@ export async function smsOrderPaymentReceived(params: {
   bundleLabel: string;
   context?: Record<string, unknown>;
 }): Promise<SmsResult> {
+  if (await smsAlreadySent("order_payment_received", params.reference)) {
+    return { ok: false, skipped: true, reason: "already_sent" };
+  }
   const message = `${SITE.name}: Payment received (${params.reference}). Your ${params.bundleLabel} bundle is being processed.`;
   const ctx: SmsLogContext = {
     template: "order_payment_received",
@@ -37,6 +40,9 @@ export async function smsOrderFulfilled(params: {
   bundleLabel: string;
   context?: Record<string, unknown>;
 }): Promise<SmsResult> {
+  if (await smsAlreadySent("order_fulfilled", params.reference)) {
+    return { ok: false, skipped: true, reason: "already_sent" };
+  }
   const message = `${SITE.name}: ${params.bundleLabel} delivered to your line. Ref ${params.reference}. Thank you!`;
   const ctx: SmsLogContext = {
     template: "order_fulfilled",

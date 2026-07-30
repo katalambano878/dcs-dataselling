@@ -1,11 +1,11 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "@/lib/db/client";
 
 const PURGEABLE_STATUSES = new Set(["suspended", "rejected"]);
 
 export async function purgeVendorAccount(
-  service: SupabaseClient,
+  service: DbClient,
   vendorId: string,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string; status: number }> {
   const { data: vendor, error: fetchErr } = await service

@@ -6,6 +6,7 @@ import { dispatchCustomerOrderToSupplier } from "@/lib/suppliers/dispatch";
 import { smsOrderPaymentReceived } from "@/lib/notifications/sms";
 import { formatDataAmount } from "@/lib/format";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { fetchWithTimeout } from "@/lib/http/fetch-with-timeout";
 
 type PaystackCharge = {
   reference: string;
@@ -24,7 +25,7 @@ export async function finalizePaystackCustomerOrder(charge: PaystackCharge): Pro
   const service = createServiceClient();
   const { data: order } = await service
     .from("orders")
-    .select("id, status, reference, recipient_phone, bundle_id")
+    .select("id, status, reference, recipient_phone, bundle_id, amount")
     .eq("reference", charge.reference)
     .maybeSingle();
 
@@ -34,10 +35,26 @@ export async function finalizePaystackCustomerOrder(charge: PaystackCharge): Pro
     reference: string;
     recipient_phone: string;
     bundle_id: string;
+    amount: number | string;
   } | null;
 
   if (!o) return false;
   if (o.status !== "pending") return false;
+
+  // Paystack amounts are in pesewas; never trust a mismatched charge.
+  const expectedPesewas = Math.round(Number(o.amount) * 100);
+  if (!Number.isFinite(expectedPesewas) || expectedPesewas <= 0) return false;
+  if (Math.abs(charge.amount - expectedPesewas) > 1) {
+    console.error(
+      "[paystack] amount mismatch",
+      JSON.stringify({
+        reference: charge.reference,
+        expectedPesewas,
+        charged: charge.amount,
+      }),
+    );
+    return false;
+  }
 
   const bundle = await fetchStorefrontOrderBundle(service, o.bundle_id);
   const bundleLabel = bundle
@@ -88,9 +105,10 @@ export async function verifyCustomerOrderWithPaystack(reference: string): Promis
   const secret = process.env.PAYSTACK_SECRET_KEY;
   if (!secret) return false;
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
     { headers: { Authorization: `Bearer ${secret}` } },
+    15_000,
   );
   const payload = (await res.json()) as {
     status?: boolean;

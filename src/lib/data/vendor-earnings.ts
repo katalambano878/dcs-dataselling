@@ -54,7 +54,11 @@ export async function fetchVendorRecentEarnings(
     return [];
   }
 
-  const bundleIds = [...new Set(orders.map((o) => (o as { bundle_id: string }).bundle_id))];
+  const bundleIds = [
+    ...new Set<string>(
+      orders.map((o: Record<string, unknown>) => (o as { bundle_id: string }).bundle_id),
+    ),
+  ];
 
   const { data: listings } = await service
     .from("vendor_listings")

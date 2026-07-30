@@ -74,6 +74,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not create account" }, { status: 400 });
     }
 
+    if (!created?.user) {
+      return NextResponse.json({ error: "Could not create account" }, { status: 400 });
+    }
+
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email,
       password: body.password,

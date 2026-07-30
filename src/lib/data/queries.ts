@@ -202,7 +202,7 @@ export async function fetchRecentActivity(limit = 12): Promise<LiveActivityItem[
 
   if (error || !data?.length) return [];
 
-  return data.map((row) => {
+  return data.map((row: Record<string, unknown>) => {
     const r = row as {
       fulfilled_at: string | null;
       created_at: string;

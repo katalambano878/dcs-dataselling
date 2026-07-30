@@ -268,12 +268,14 @@ export async function fetchConsoleSendsPaginated(
 
   if (error) return { rows: [], total: 0, page, pageSize };
 
-  let rows = (data ?? []).map((row) => mapSendRow(vendorId, row as Record<string, unknown>));
+  let rows: ConsoleSendRow[] = (data ?? []).map((row: Record<string, unknown>) =>
+    mapSendRow(vendorId, row),
+  );
 
   if (opts.status === "undelivered" || opts.status === "pending") {
-    rows = rows.filter((row) => isConsoleSendAwaitingManual(row));
+    rows = rows.filter((row: ConsoleSendRow) => isConsoleSendAwaitingManual(row));
   } else if (opts.status === "processing") {
-    rows = rows.filter((row) => isConsoleSendApiProcessing(row));
+    rows = rows.filter((row: ConsoleSendRow) => isConsoleSendApiProcessing(row));
   }
 
   return {
@@ -331,7 +333,7 @@ export async function fetchConsoleCreditsPaginated(
 
   if (error) return { rows: [], total: 0, page, pageSize };
 
-  const rows = (data ?? []).map((row) => {
+  const rows = (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;

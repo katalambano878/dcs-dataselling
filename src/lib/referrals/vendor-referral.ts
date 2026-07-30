@@ -124,7 +124,7 @@ async function countVendorFulfilledSales(vendorId: string): Promise<number> {
     .select("id")
     .eq("vendor_id", vendorId);
 
-  const orderIds = (orderRows ?? []).map((r) => (r as { id: string }).id);
+  const orderIds = (orderRows ?? []).map((r: Record<string, unknown>) => (r as { id: string }).id);
   let wholesaleCount = 0;
   if (orderIds.length > 0) {
     const { count } = await service

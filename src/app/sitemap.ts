@@ -8,7 +8,7 @@ export const revalidate = 1800;
 type VendorRow = { slug: string; updated_at: string | null; created_at: string };
 
 async function fetchPublicVendorSlugs(): Promise<VendorRow[]> {
-  if (!hasSupabaseConfig() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  if (!hasSupabaseConfig()) return [];
   try {
     const supabase = createServiceClient();
     const { data, error } = await supabase

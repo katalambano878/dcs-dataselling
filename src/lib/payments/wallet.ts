@@ -196,16 +196,39 @@ export async function verifyWalletTopupWithPaystack(
   const secret = process.env.PAYSTACK_SECRET_KEY;
   if (!secret) return null;
 
-  const res = await fetch(
+  const { fetchWithTimeout } = await import("@/lib/http/fetch-with-timeout");
+  const res = await fetchWithTimeout(
     `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
     { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" },
+    15_000,
   );
   const payload = (await res.json()) as {
     status?: boolean;
-    data?: { status?: string };
+    data?: { status?: string; amount?: number };
   };
 
   if (!payload.status || payload.data?.status !== "success") return null;
+
+  if (!hasSupabaseConfig()) return null;
+  const service = createServiceClient();
+  const { data: topup } = await service
+    .from("wallet_topups")
+    .select("amount, status")
+    .eq("reference", reference)
+    .maybeSingle();
+  const row = topup as { amount: number | string; status: string } | null;
+  if (!row || row.status !== "pending") return null;
+
+  const expectedPesewas = Math.round(Number(row.amount) * 100);
+  const charged = Number(payload.data?.amount ?? NaN);
+  if (!Number.isFinite(expectedPesewas) || !Number.isFinite(charged)) return null;
+  if (Math.abs(charged - expectedPesewas) > 1) {
+    console.error(
+      "[paystack] wallet top-up amount mismatch",
+      JSON.stringify({ reference, expectedPesewas, charged }),
+    );
+    return null;
+  }
 
   return markWalletTopupPaid(reference, reference);
 }

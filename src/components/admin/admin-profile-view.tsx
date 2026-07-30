@@ -31,7 +31,6 @@ import { ProfilePhotoField } from "@/components/shared/profile-photo-field";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
 import { formatGHS, formatPhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
@@ -151,9 +150,13 @@ export function AdminProfileView({ profile, platform, orders }: Props) {
 
     setSaving(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
-      if (error) throw error;
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordForm.password }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not update password");
       toast.success("Password updated");
       setPasswordOpen(false);
       setPasswordForm({ password: "", confirm: "" });

@@ -33,26 +33,28 @@ export async function fetchAdminConsoleVendors(): Promise<AdminConsoleVendorRow[
     .select("id, name");
 
   const tierMap = new Map(
-    (tiers ?? []).map((t) => {
+    (tiers ?? []).map((t: Record<string, unknown>) => {
       const r = t as { id: string; name: string };
       return [r.id, r.name];
     }),
   );
 
-  const acctMap = new Map(
-    (accounts ?? []).map((a) => {
-      const r = a as {
-        vendor_id: string;
-        enabled: boolean;
-        balance_mb: number;
-        total_sends: number;
-        pricing_tier_id: string | null;
-      };
+  type AcctRow = {
+    vendor_id: string;
+    enabled: boolean;
+    balance_mb: number;
+    total_sends: number;
+    pricing_tier_id: string | null;
+  };
+
+  const acctMap = new Map<string, AcctRow>(
+    (accounts ?? []).map((a: Record<string, unknown>) => {
+      const r = a as AcctRow;
       return [r.vendor_id, r];
     }),
   );
 
-  return (vendors ?? []).map((v) => {
+  return (vendors ?? []).map((v: Record<string, unknown>) => {
     const row = v as { id: string; business_name: string; slug: string; status: string };
     const acct = acctMap.get(row.id);
     const tierId = acct?.pricing_tier_id ?? null;

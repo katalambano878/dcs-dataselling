@@ -37,7 +37,7 @@ export async function fetchAdminConsoleSupportTickets(
 
   const { data } = await query;
 
-  return (data ?? []).map((row) => {
+  return (data ?? []).map((row: Record<string, unknown>) => {
     const r = row as {
       id: string;
       vendor_id: string;

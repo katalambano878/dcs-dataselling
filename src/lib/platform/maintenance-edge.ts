@@ -1,4 +1,4 @@
-/** Edge-safe maintenance flag lookup (middleware). Uses Supabase REST directly. */
+/** Edge-safe maintenance flag lookup (middleware). */
 
 export interface MaintenanceState {
   enabled: boolean;
@@ -8,21 +8,35 @@ export interface MaintenanceState {
 const DEFAULT: MaintenanceState = { enabled: false, message: "" };
 
 export async function fetchMaintenanceState(): Promise<MaintenanceState> {
+  if (process.env.MAINTENANCE_MODE === "true" || process.env.MAINTENANCE_MODE === "1") {
+    return {
+      enabled: true,
+      message: (process.env.MAINTENANCE_MESSAGE || "").trim(),
+    };
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !serviceKey) return DEFAULT;
+  // Hosted Supabase REST, or local PostgREST shim at SITE_URL in plain-PG mode.
+  const base = (supabaseUrl || siteUrl || "").replace(/\/$/, "");
+  if (!base) return DEFAULT;
 
   try {
+    const headers: Record<string, string> = {};
+    if (serviceKey) {
+      headers.apikey = serviceKey;
+      headers.Authorization = `Bearer ${serviceKey}`;
+    }
+
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/platform_settings?key=eq.platform_config&select=value`,
+      `${base}/rest/v1/platform_settings?key=eq.platform_config&select=value`,
       {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        },
+        headers,
         cache: "no-store",
+        signal: AbortSignal.timeout(2500),
       },
     );
 
@@ -50,6 +64,8 @@ export function isMaintenanceBypassPath(pathname: string): boolean {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/console") ||
     pathname.startsWith("/maintenance") ||
+    pathname.startsWith("/rest/") ||
+    pathname.startsWith("/storage/") ||
     pathname.startsWith("/_next")
   );
 }

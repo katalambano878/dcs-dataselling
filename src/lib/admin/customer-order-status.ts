@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "@/lib/db/client";
 import { creditVendorReward } from "@/lib/vendor/extras";
 import { getVendorTierForReward } from "@/lib/data/admin-tier-ops";
 import { getAgentTierSettings } from "@/lib/data/tier-settings";
@@ -12,7 +12,7 @@ import type { OrderStatus } from "@/lib/constants";
 import { fetchStorefrontOrderBundle } from "@/lib/orders/storefront-listing";
 
 export async function applyCustomerOrderStatus(
-  service: SupabaseClient,
+  service: DbClient,
   orderId: string,
   status: OrderStatus,
 ): Promise<{ ok: true } | { ok: false; error: string }> {

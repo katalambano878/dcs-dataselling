@@ -349,7 +349,7 @@ export async function fetchAdminCustomerPayments(
     return [];
   }
 
-  return data.map((row) => {
+  return data.map((row: unknown) => {
     const r = row as {
       id: string;
       reference: string;
@@ -410,8 +410,8 @@ export async function fetchAdminTopCustomers(limit = 5): Promise<AdminTopCustome
     .select("id, full_name, email")
     .in("id", userIds);
 
-  const nameMap = new Map(
-    (profiles ?? []).map((p) => {
+  const nameMap = new Map<string, string>(
+    (profiles ?? []).map((p: unknown) => {
       const row = p as { id: string; full_name: string | null; email: string };
       return [row.id, row.full_name || row.email.split("@")[0]] as const;
     }),
@@ -430,7 +430,13 @@ export async function fetchAdminOrderStats() {
     return { total: 0, fulfilled: 0, failed: 0, revenue: 0 };
   }
   const service = createServiceClient();
-  const { data } = await service.from("orders").select("status, amount");
+  // Bound the scan — full-table aggregate froze admin under load after PG cutover.
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await service
+    .from("orders")
+    .select("status, amount")
+    .gte("created_at", since)
+    .limit(50_000);
   const rows = (data ?? []) as { status: string; amount: number }[];
   return {
     total: rows.length,

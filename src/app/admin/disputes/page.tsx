@@ -46,7 +46,7 @@ export default async function AdminDisputesPage() {
       .limit(50);
 
     if (!error && data) {
-      disputes = data.map((row) => {
+      disputes = data.map((row: Record<string, unknown>) => {
         const r = row as {
           id: string;
           order_id: string;

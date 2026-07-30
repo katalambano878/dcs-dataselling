@@ -1,7 +1,7 @@
 import "server-only";
 
 import { after } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "@/lib/db/client";
 import { syncWholesaleOrderFromItems } from "@/lib/admin/wholesale-order-sync";
 import {
   isSupplierDeliveryComplete,
@@ -27,7 +27,7 @@ export {
  *  - payment failed or supplier rejected → mark failed so it leaves the work queue
  */
 export async function reconcileAutoFulfilledOrders(
-  service: SupabaseClient,
+  service: DbClient,
 ): Promise<{
   wholesaleItems: number;
   customerOrders: number;
@@ -49,7 +49,8 @@ export async function reconcileAutoFulfilledOrders(
       wholesale_orders!inner ( status, payment_reference )
     `,
     )
-    .in("status", ["queued", "processing", "pending"]);
+    .in("status", ["queued", "processing", "pending"])
+    .limit(200);
 
   for (const raw of staleItems ?? []) {
     const item = raw as {
@@ -104,7 +105,8 @@ export async function reconcileAutoFulfilledOrders(
   const { data: staleOrders } = await service
     .from("orders")
     .select("id, status, supplier_status")
-    .in("status", ["paid", "queued", "processing"]);
+    .in("status", ["paid", "queued", "processing"])
+    .limit(200);
 
   for (const raw of staleOrders ?? []) {
     const row = raw as { id: string; status: string; supplier_status: string | null };
