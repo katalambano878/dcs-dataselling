@@ -48,12 +48,13 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
     }
   }
 
-  // Wholesale parents tagged shopdcs that are still processing
+  // Wholesale parents tagged shopdcs — include recent failed rows that may still
+  // need a status refresh (e.g. marked failed before order_items status was parsed).
   const { data: wholesaleRows } = await service
     .from("wholesale_orders")
     .select("id, supplier_reference")
     .eq("supplier", "shopdcs")
-    .in("status", ["processing", "queued"])
+    .in("status", ["processing", "queued", "failed"])
     .limit(limit);
 
   // Line-level txn codes for those parents (authoritative for Shop DCS poll)
