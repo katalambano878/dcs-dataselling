@@ -1,11 +1,20 @@
-/** Plain GB number for bulk paste/export (no "GB" suffix). 1 GB = 1000 MB. */
+/**
+ * Plain GB number for bulk paste/export (no "GB" suffix).
+ * Matches display labels: 3072/5120 (binary) → 3/5, 3000/5000 (decimal) → 3/5.
+ */
 export function dataMbToVolumeGb(dataMb: number): number {
   if (!dataMb || dataMb <= 0) return 0;
-  if (dataMb >= 1000) {
-    const gb = dataMb / 1000;
-    return gb % 1 === 0 ? gb : Math.round(gb * 10) / 10;
-  }
-  return Math.round((dataMb / 1000) * 100) / 100;
+  if (dataMb % 1000 === 0) return dataMb / 1000;
+  if (dataMb % 1024 === 0) return dataMb / 1024;
+
+  const gb1000 = dataMb / 1000;
+  const gb1024 = dataMb / 1024;
+  const err1000 = Math.abs(gb1000 - Math.round(gb1000));
+  const err1024 = Math.abs(gb1024 - Math.round(gb1024));
+  if (err1024 <= 0.05 && err1024 <= err1000) return Math.round(gb1024);
+  if (err1000 <= 0.05) return Math.round(gb1000);
+  if (dataMb >= 1000) return Math.round(gb1000 * 10) / 10;
+  return Math.round(gb1000 * 100) / 100;
 }
 
 export function networkPackageLabel(network: string): string {
