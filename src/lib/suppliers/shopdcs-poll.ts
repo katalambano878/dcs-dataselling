@@ -3,10 +3,17 @@ import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { resolveSupplierDeliveryByReference } from "./dispatch";
 import {
+  extractShopDcsDeliveryStatus,
   fetchTransactionStatus,
   isShopDcsConfigured,
   mapShopDcsStatus,
 } from "./shopdcs";
+
+function isShopDcsTxnCode(value: string): boolean {
+  const v = value.trim();
+  // Live Shop DCS codes look like txn_6a6cc5419d25d — skip our internal telecel:DCS-… refs.
+  return /^txn_/i.test(v) || /^\d+$/.test(v);
+}
 
 /** Poll Shop DCS for in-flight Telecel orders and mark them fulfilled/failed. */
 export async function syncPendingShopDcsOrders(limit = 40): Promise<{
@@ -31,8 +38,14 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
 
   for (const row of customerRows ?? []) {
     const r = row as { supplier_order_code: string | null; supplier_reference: string | null };
-    if (r.supplier_order_code) ids.add(r.supplier_order_code);
-    else if (r.supplier_reference) ids.add(r.supplier_reference.split(",")[0]!);
+    if (r.supplier_order_code && isShopDcsTxnCode(r.supplier_order_code)) {
+      ids.add(r.supplier_order_code);
+    } else if (r.supplier_reference) {
+      for (const part of r.supplier_reference.split(",")) {
+        const t = part.trim();
+        if (t && isShopDcsTxnCode(t)) ids.add(t);
+      }
+    }
   }
 
   // Wholesale parents tagged shopdcs that are still processing
@@ -43,16 +56,7 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
     .in("status", ["processing", "queued"])
     .limit(limit);
 
-  for (const row of wholesaleRows ?? []) {
-    const ref = (row as { supplier_reference: string | null }).supplier_reference;
-    if (!ref) continue;
-    for (const part of ref.split(",")) {
-      const t = part.trim();
-      if (t) ids.add(t);
-    }
-  }
-
-  // Line-level codes for those parents
+  // Line-level txn codes for those parents (authoritative for Shop DCS poll)
   const parentIds = ((wholesaleRows as { id: string }[] | null) ?? []).map((r) => r.id);
   if (parentIds.length > 0) {
     const { data: itemRows } = await service
@@ -63,7 +67,7 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
       .limit(limit);
     for (const row of itemRows ?? []) {
       const code = (row as { supplier_order_code: string | null }).supplier_order_code;
-      if (code) ids.add(code);
+      if (code && isShopDcsTxnCode(code)) ids.add(code);
     }
   }
 
@@ -78,7 +82,8 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
       stillProcessing += 1;
       continue;
     }
-    const mapped = mapShopDcsStatus(result.data.status);
+    const deliveryStatus = extractShopDcsDeliveryStatus(result.data);
+    const mapped = mapShopDcsStatus(deliveryStatus);
     if (mapped === "processing") {
       stillProcessing += 1;
       continue;
@@ -90,7 +95,7 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
         ? String(result.data.transaction_code)
         : txnId,
       outcome: mapped,
-      supplierStatus: result.data.status ?? mapped,
+      supplierStatus: deliveryStatus ?? mapped,
       rawPayload: result.data,
     });
     if (mapped === "fulfilled") {

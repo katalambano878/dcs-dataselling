@@ -289,7 +289,8 @@ export async function fetchAdminOrderBoardRows(
         commission: null,
         apiStatus: row.supplier_status ?? order.supplier_status ?? row.status,
         apiSource: order.supplier ?? "skanka5",
-        apiReference: order.supplier_reference,
+        // Prefer per-line supplier txn code (e.g. Shop DCS txn_…) over parent bulk ref.
+        apiReference: row.supplier_order_code ?? order.supplier_reference,
         wholesaleOrderId: order.id,
         wholesaleBundleId: bundle.id,
         bundleActive: bundle.active,

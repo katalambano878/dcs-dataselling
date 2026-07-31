@@ -47,15 +47,43 @@ export interface ShopDcsBuyResponse {
   error?: string;
 }
 
+export interface ShopDcsOrderItem {
+  id?: number | string;
+  price?: string | number;
+  beneficiary_number?: string;
+  status?: string;
+  network?: string;
+  volume?: string | number;
+}
+
 export interface ShopDcsTransaction {
   id?: number | string;
   type?: string;
+  source?: string;
   status?: string;
+  amount?: string | number;
   transaction_code?: string;
   created_at?: string;
-  order_items?: unknown[];
+  order_items?: ShopDcsOrderItem[];
   message?: string;
   error?: string;
+}
+
+/**
+ * Shop DCS puts delivery state on order_items[].status
+ * (DELIVERED / CANCELLED / UNDELIVERED), not always on the top-level status.
+ */
+export function extractShopDcsDeliveryStatus(
+  txn: ShopDcsTransaction | null | undefined,
+): string | null {
+  if (!txn) return null;
+  const items = Array.isArray(txn.order_items) ? txn.order_items : [];
+  for (const item of items) {
+    const s = (item?.status ?? "").trim();
+    if (s) return s;
+  }
+  const top = (txn.status ?? "").trim();
+  return top || null;
 }
 
 export function getShopDcsBaseUrl(): string {
@@ -374,7 +402,8 @@ export async function submitBulkOrders(params: {
         result.data.transaction_code ?? result.data.transaction_id ?? result.data.id ?? lineRef,
       ),
       msisdn: r.msisdn,
-      status: result.data.status ?? "pending",
+      // Buy response often has no status field — treat success as accepted/processing.
+      status: result.data.status ?? "accepted",
     });
   }
 
@@ -412,12 +441,16 @@ export async function fetchTransactionStatus(
   return result;
 }
 
-/** Map Shop DCS transaction status → our delivery outcome. */
+/** Map Shop DCS transaction / order-item status → our delivery outcome. */
 export function mapShopDcsStatus(
   status: string | null | undefined,
 ): "fulfilled" | "failed" | "processing" {
   const s = (status ?? "").trim().toLowerCase();
   if (!s) return "processing";
+  // Check undelivered before "delivered" substring matches.
+  if (s === "undelivered" || s === "pending" || s === "processing" || s === "queued") {
+    return "processing";
+  }
   if (
     s === "completed" ||
     s === "complete" ||
@@ -426,7 +459,7 @@ export function mapShopDcsStatus(
     s === "delivered" ||
     s === "fulfilled" ||
     s.includes("success") ||
-    s.includes("complete")
+    (s.includes("complete") && !s.includes("incomplete"))
   ) {
     return "fulfilled";
   }
@@ -437,7 +470,8 @@ export function mapShopDcsStatus(
     s === "cancelled" ||
     s === "canceled" ||
     s.includes("fail") ||
-    s.includes("reject")
+    s.includes("reject") ||
+    s.includes("cancel")
   ) {
     return "failed";
   }
