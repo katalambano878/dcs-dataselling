@@ -23,6 +23,7 @@ import {
 import { requireRole } from "@/lib/auth/session";
 import { isIshareConfigured } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
+import { isShopDcsConfigured } from "@/lib/suppliers/shopdcs";
 import { isSkanka5Configured } from "@/lib/suppliers/skanka5";
 import { isSuccessBizHubConfigured } from "@/lib/suppliers/successbizhub";
 import { getPlatformConfig } from "@/lib/data/platform-config";
@@ -34,6 +35,7 @@ import {
   fetchAwaitingManualOrders,
 } from "@/lib/data/supplier-logs";
 import { SupplierPollRailwayButton } from "./supplier-poll-railway-button";
+import { SupplierPollShopDcsButton } from "./supplier-poll-shopdcs-button";
 import { SupplierPingButton } from "./supplier-ping-button";
 import { SupplierLogTable } from "./supplier-log-table";
 import { FailedOrderList } from "./failed-order-list";
@@ -59,6 +61,7 @@ export default async function SupplierConsolePage() {
   const sbhConfigured = isSuccessBizHubConfigured();
   const ishareConfigured = isIshareConfigured();
   const railwayConfigured = isRailwayExternalConfigured();
+  const shopDcsConfigured = isShopDcsConfigured();
   const webhookConfigured = Boolean(process.env.SKANKA5_WEBHOOK_SECRET);
   const unsignedMode = process.env.SKANKA5_ALLOW_UNSIGNED_WEBHOOKS === "1";
 
@@ -76,8 +79,23 @@ export default async function SupplierConsolePage() {
     successbizhub: "DataCoreGH",
     railwayexternal: "Railway API",
     ishare: "iShare",
+    shopdcs: "Shop DCS",
     manual: "Manual",
   };
+
+  const shopDcsEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
+    { name: "SHOP_DCS_API_KEY", present: shopDcsConfigured, required: true },
+    {
+      name: "SHOP_DCS_NETWORK_ID_TELECEL",
+      present: Boolean(process.env.SHOP_DCS_NETWORK_ID_TELECEL?.trim()),
+      required: false,
+    },
+    {
+      name: "SHOP_DCS_BASE_URL",
+      present: Boolean(process.env.SHOP_DCS_BASE_URL?.trim()),
+      required: false,
+    },
+  ];
 
   const ishareEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
     { name: "ISHARE_API_KEY", present: ishareConfigured, required: true },
@@ -167,18 +185,19 @@ export default async function SupplierConsolePage() {
           routing={platformConfig.supplierRouting}
           envDefaults={{
             mtn: process.env.SUPPLIER_FOR_MTN?.trim().toLowerCase() ?? "skanka5",
-            telecel: process.env.SUPPLIER_FOR_TELECEL?.trim().toLowerCase() ?? "manual",
+            telecel: process.env.SUPPLIER_FOR_TELECEL?.trim().toLowerCase() ?? "shopdcs",
             at: process.env.SUPPLIER_FOR_AT?.trim().toLowerCase() ?? "manual",
           }}
           effective={{
             mtn: matrix.find((m) => m.network === "mtn")?.supplierId ?? "skanka5",
-            telecel: matrix.find((m) => m.network === "telecel")?.supplierId ?? "manual",
+            telecel: matrix.find((m) => m.network === "telecel")?.supplierId ?? "shopdcs",
             at: matrix.find((m) => m.network === "at")?.supplierId ?? "manual",
           }}
           skanka5Configured={configured}
           sbhConfigured={sbhConfigured}
           ishareConfigured={ishareConfigured}
           railwayConfigured={railwayConfigured}
+          shopDcsConfigured={shopDcsConfigured}
         />
         {manualNetworks > 0 && (
           <AdminAlert
@@ -226,8 +245,41 @@ export default async function SupplierConsolePage() {
       </AdminSection>
 
       <AdminSection
+        title="Shop DCS (Telecel supplier)"
+        description="Routes Telecel orders to shopdcsgh.com — set SUPPLIER_FOR_TELECEL=shopdcs. Status sync via /api/cron/poll-shopdcs."
+        icon={Cable}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          <AdminStatusBadge ok={shopDcsConfigured} label="API key" />
+        </div>
+        <AdminAlert
+          tone={shopDcsConfigured ? "success" : "warning"}
+          title={shopDcsConfigured ? "Shop DCS API key detected" : "SHOP_DCS_API_KEY not set"}
+        >
+          <AdminEnvCheckList items={shopDcsEnvChecks} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Docs:{" "}
+            <a
+              href="https://shopdcsgh.com/api-docs"
+              className="font-semibold text-amber-800 hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              shopdcsgh.com/api-docs
+            </a>
+            . Auth header: <code>X-API-KEY</code>. Default Telecel network id:{" "}
+            <code>2</code>.
+          </p>
+        </AdminAlert>
+        <div className="mt-3 space-y-3">
+          <SupplierPingButton disabled={!shopDcsConfigured} supplier="shopdcs" />
+          <SupplierPollShopDcsButton disabled={!shopDcsConfigured} />
+        </div>
+      </AdminSection>
+
+      <AdminSection
         title="Success Biz Hub (alternate supplier)"
-        description="Telecel automated supplier — toggle routing above or set SUPPLIER_FOR_TELECEL=successbizhub in env."
+        description="Alternate automated supplier — toggle routing above or set SUPPLIER_FOR_TELECEL=successbizhub in env."
         icon={Cable}
       >
         <div className="flex flex-wrap gap-1.5">

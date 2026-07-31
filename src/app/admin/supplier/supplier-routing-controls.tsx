@@ -15,6 +15,7 @@ const NETWORK_SUPPLIER_OPTIONS: Array<{ id: NetworkSupplierId; label: string }> 
   { id: "successbizhub", label: "DataCoreGH" },
   { id: "railwayexternal", label: "Railway API" },
   { id: "ishare", label: "iShare" },
+  { id: "shopdcs", label: "Shop DCS" },
 ];
 
 const NETWORK_ROWS: Array<{ network: SupplierNetworkSlug; label: string }> = [
@@ -31,6 +32,7 @@ interface Props {
   sbhConfigured: boolean;
   ishareConfigured: boolean;
   railwayConfigured?: boolean;
+  shopDcsConfigured?: boolean;
 }
 
 export function SupplierRoutingControls({
@@ -41,6 +43,7 @@ export function SupplierRoutingControls({
   sbhConfigured,
   ishareConfigured,
   railwayConfigured = false,
+  shopDcsConfigured = false,
 }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<SupplierNetworkSlug | null>(null);
@@ -63,6 +66,10 @@ export function SupplierRoutingControls({
     }
     if (supplier === "railwayexternal" && !railwayConfigured) {
       toast.error("Set RAILWAY_EXTERNAL_API_KEY first");
+      return;
+    }
+    if (supplier === "shopdcs" && !shopDcsConfigured) {
+      toast.error("Set SHOP_DCS_API_KEY first");
       return;
     }
 

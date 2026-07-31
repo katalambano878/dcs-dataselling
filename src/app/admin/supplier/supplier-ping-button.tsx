@@ -10,7 +10,7 @@ export function SupplierPingButton({
   label,
 }: {
   disabled?: boolean;
-  supplier?: "skanka5" | "successbizhub" | "railwayexternal" | "ishare";
+  supplier?: "skanka5" | "successbizhub" | "railwayexternal" | "ishare" | "shopdcs";
   label?: string;
 }) {
   const router = useRouter();
@@ -42,7 +42,11 @@ export function SupplierPingButton({
         kind: "ok",
         label:
           data.label ??
-          (supplier === "successbizhub" || supplier === "ishare" ? "Wallet balance" : "Networks"),
+          (supplier === "successbizhub" ||
+          supplier === "ishare" ||
+          supplier === "shopdcs"
+            ? "Wallet balance"
+            : "Networks"),
         data: payload,
       });
       startTransition(() => router.refresh());
@@ -55,7 +59,7 @@ export function SupplierPingButton({
   }
 
   const successTitle =
-    supplier === "successbizhub" || supplier === "ishare"
+    supplier === "successbizhub" || supplier === "ishare" || supplier === "shopdcs"
       ? "Connected. Wallet response:"
       : "Connected. Networks returned:";
 
@@ -69,7 +73,7 @@ export function SupplierPingButton({
       >
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
         {label ??
-          (supplier === "successbizhub" || supplier === "ishare"
+          (supplier === "successbizhub" || supplier === "ishare" || supplier === "shopdcs"
             ? "Ping wallet balance"
             : "Ping /fetch-networks")}
       </button>

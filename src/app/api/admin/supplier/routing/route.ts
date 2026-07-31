@@ -11,7 +11,14 @@ import {
 import type { SupplierNetworkSlug } from "@/lib/suppliers/types";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
 
-const supplierIdSchema = z.enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare"]);
+const supplierIdSchema = z.enum([
+  "manual",
+  "skanka5",
+  "successbizhub",
+  "railwayexternal",
+  "ishare",
+  "shopdcs",
+]);
 
 const patchSchema = z
   .object({

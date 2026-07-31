@@ -27,9 +27,15 @@ const schema = z.object({
   momoDirect: momoDirectSchema.optional(),
   supplierRouting: z
     .object({
-      mtn: z.enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare"]).optional(),
-      telecel: z.enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare"]).optional(),
-      at: z.enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare"]).optional(),
+      mtn: z
+        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .optional(),
+      telecel: z
+        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .optional(),
+      at: z
+        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .optional(),
     })
     .optional(),
   contact: z

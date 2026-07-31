@@ -3,6 +3,7 @@ import "server-only";
 import { ishareClient } from "./ishare-client";
 import { manualClient } from "./manual";
 import { railwayExternalClient } from "./railway-external-client";
+import { shopDcsClient } from "./shopdcs-client";
 import { skanka5Client } from "./skanka5-client";
 import { successBizHubClient } from "./successbizhub-client";
 import type { SupplierClient, SupplierNetworkSlug } from "./types";
@@ -20,13 +21,14 @@ const SUPPLIERS: Record<string, SupplierClient> = {
   successbizhub: successBizHubClient,
   railwayexternal: railwayExternalClient,
   ishare: ishareClient,
+  shopdcs: shopDcsClient,
   manual: manualClient,
 };
 
 /** Default supplier per network if no env var is set. */
 const DEFAULT_BY_NETWORK: Record<SupplierNetworkSlug, string> = {
   mtn: "skanka5",
-  telecel: "manual",
+  telecel: "shopdcs",
   at: "manual",
 };
 

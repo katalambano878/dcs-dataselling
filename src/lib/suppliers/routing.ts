@@ -14,6 +14,7 @@ const SUPPLIER_LABELS: Record<NetworkSupplierId, string> = {
   successbizhub: "DataCoreGH",
   railwayexternal: "Railway API",
   ishare: "iShare (MultiData)",
+  shopdcs: "Shop DCS (Telecel)",
   manual: "Manual fulfilment (no automated supplier)",
 };
 

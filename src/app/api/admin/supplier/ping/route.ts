@@ -5,6 +5,7 @@ import { getSupplierById } from "@/lib/suppliers/registry";
 import { isIshareConfigured, pingSupplier as pingIshare } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured, pingSupplier as pingSkanka5 } from "@/lib/suppliers/skanka5";
+import { isShopDcsConfigured, pingSupplier as pingShopDcs } from "@/lib/suppliers/shopdcs";
 import { isSuccessBizHubConfigured, pingSupplier as pingSuccessBizHub } from "@/lib/suppliers/successbizhub";
 
 export async function POST(request: Request) {
@@ -52,6 +53,22 @@ export async function POST(request: Request) {
       ok: true,
       supplier: "ishare",
       label: "iShare balance",
+      data: result.data,
+    });
+  }
+
+  if (supplierId === "shopdcs") {
+    if (!isShopDcsConfigured()) {
+      return NextResponse.json({ error: "SHOP_DCS_API_KEY not set" }, { status: 503 });
+    }
+    const result = await pingShopDcs();
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
+    }
+    return NextResponse.json({
+      ok: true,
+      supplier: "shopdcs",
+      label: "Wallet balance",
       data: result.data,
     });
   }
