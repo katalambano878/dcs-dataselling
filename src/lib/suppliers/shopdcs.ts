@@ -91,58 +91,43 @@ export function toShopDcsPhone(raw: string): string | null {
 }
 
 /**
- * Shop DCS package `volume` is in GB; buy docs say `shared_bundle` is MB.
- * Live catalogue uses whole-GB sizes (10, 15, 20…). Prefer MB (= GB×1024)
- * when a catalogue match exists; fall back to our data_mb.
+ * Shop DCS `shared_bundle` uses decimal MB: 1GB=1000, 2GB=2000, 5GB=5000.
+ * Our catalogue stores binary-ish MB (5120≈5GB, 10240≈10GB), so convert via
+ * nearest whole GB then ×1000.
  *
- * Override with SHOP_DCS_SHARED_BUNDLE_UNIT=gb to send GB integers instead.
+ * Override with SHOP_DCS_SHARED_BUNDLE_UNIT=gb to send whole-GB integers instead.
  */
+export function gbFromDataMb(dataMb: number): number {
+  const as1024 = dataMb / 1024;
+  const as1000 = dataMb / 1000;
+  const pick =
+    Math.abs(as1024 - Math.round(as1024)) <= Math.abs(as1000 - Math.round(as1000))
+      ? as1024
+      : as1000;
+  return Math.max(1, Math.round(pick));
+}
+
 export function sharedBundleFromMb(dataMb: number, matchedPackageVolumeGb?: number): number {
   const unit = (process.env.SHOP_DCS_SHARED_BUNDLE_UNIT ?? "mb").trim().toLowerCase();
-  if (unit === "gb") {
-    if (matchedPackageVolumeGb != null && matchedPackageVolumeGb > 0) {
-      return matchedPackageVolumeGb;
-    }
-    const gb1000 = dataMb / 1000;
-    const gb1024 = dataMb / 1024;
-    const pick = Math.abs(gb1000 - Math.round(gb1000)) <= Math.abs(gb1024 - Math.round(gb1024))
-      ? gb1000
-      : gb1024;
-    return Math.max(1, Math.round(pick));
-  }
-  if (matchedPackageVolumeGb != null && matchedPackageVolumeGb > 0) {
-    return Math.round(matchedPackageVolumeGb * 1024);
-  }
-  return Math.max(1, Math.round(dataMb));
+  const gb =
+    matchedPackageVolumeGb != null && matchedPackageVolumeGb > 0
+      ? matchedPackageVolumeGb
+      : gbFromDataMb(dataMb);
+  if (unit === "gb") return gb;
+  // Shop DCS error text: "1GB is 1000, 2GB 2000 etc"
+  return gb * 1000;
 }
 
 export function matchPackageVolumeGb(
   dataMb: number,
   packages: ShopDcsPackage[],
 ): number | undefined {
-  if (!packages.length) return undefined;
-  const candidates = [
-    dataMb / 1024,
-    dataMb / 1000,
-    Math.round(dataMb / 1024),
-    Math.round(dataMb / 1000),
-  ];
-  for (const c of candidates) {
-    const hit = packages.find((p) => Number(p.volume) === c || Math.abs(Number(p.volume) - c) < 0.05);
-    if (hit) return Number(hit.volume);
-  }
-  // nearest package by GB
-  const target = dataMb / 1024;
-  let best: ShopDcsPackage | undefined;
-  let bestDiff = Infinity;
-  for (const p of packages) {
-    const diff = Math.abs(Number(p.volume) - target);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = p;
-    }
-  }
-  return best && bestDiff <= 1 ? Number(best.volume) : undefined;
+  const targetGb = gbFromDataMb(dataMb);
+  if (!packages.length) return targetGb;
+  const hit = packages.find((p) => Number(p.volume) === targetGb);
+  if (hit) return Number(hit.volume);
+  // Catalogue may omit smaller sizes that the buy API still accepts (e.g. 5GB).
+  return targetGb;
 }
 
 interface LogInput {
