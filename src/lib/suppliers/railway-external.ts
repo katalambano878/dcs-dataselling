@@ -239,6 +239,47 @@ export async function fetchRailwayProducts(force = false): Promise<RailwayResult
   return { ok: true, status: result.status, data: products };
 }
 
+/**
+ * NovaMax exposes multiple MTN price tiers for the same GB size, e.g.
+ *   MTN          5GB → 21.6
+ *   MTN - OTHER  5GB → 18.5
+ *   MTN - NORMAL 5GB → 20
+ * Picking the first catalogue match was buying the expensive bare "MTN" row.
+ *
+ * Prefer RAILWAY_PRODUCT_TIER (default OTHER), else cheapest exact-GB match.
+ */
+function preferredRailwayTiers(): string[] {
+  const raw = (process.env.RAILWAY_PRODUCT_TIER ?? "OTHER").trim();
+  if (!raw || raw.toLowerCase() === "none") return [];
+  return raw.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean);
+}
+
+function railwayTierRank(productName: string, tiers: string[]): number {
+  const name = productName.trim().toUpperCase();
+  for (let i = 0; i < tiers.length; i++) {
+    const tier = tiers[i]!;
+    if (name.includes(` - ${tier}`) || name.endsWith(` ${tier}`) || name.includes(tier)) {
+      return i;
+    }
+  }
+  // Bare "MTN" / "TELECEL" with no tier — treat as last resort when a tier is preferred.
+  if (tiers.length > 0 && !name.includes(" - ")) return 1000;
+  return 500;
+}
+
+function pickBestRailwayCandidate(
+  rows: Array<{ p: RailwayProduct; gb: number }>,
+): { p: RailwayProduct; gb: number } | undefined {
+  if (rows.length === 0) return undefined;
+  const tiers = preferredRailwayTiers();
+  return [...rows].sort((a, b) => {
+    const tierDiff = railwayTierRank(a.p.name, tiers) - railwayTierRank(b.p.name, tiers);
+    if (tierDiff !== 0) return tierDiff;
+    // Same tier preference → cheapest (avoids silent losses).
+    return Number(a.p.price) - Number(b.p.price);
+  })[0];
+}
+
 export async function resolveRailwayProductId(
   network: SupplierNetworkSlug,
   volumeMb: number,
@@ -257,17 +298,20 @@ export async function resolveRailwayProductId(
       const gb = extractGbFromProductText(`${p.name} ${p.description ?? ""}`);
       return { p, net, gb };
     })
-    .filter((row) => row.net === network && row.gb != null);
+    .filter((row): row is { p: RailwayProduct; net: SupplierNetworkSlug; gb: number } =>
+      row.net === network && row.gb != null,
+    );
 
-  const exact = candidates.find((c) => Math.round(c.gb!) === targetGb);
-  if (exact) return { productId: exact.p.id };
+  const exact = candidates.filter((c) => Math.round(c.gb) === targetGb);
+  const bestExact = pickBestRailwayCandidate(exact);
+  if (bestExact) return { productId: bestExact.p.id };
 
-  const closest = candidates.sort(
-    (a, b) => Math.abs(a.gb! - targetGb) - Math.abs(b.gb! - targetGb),
-  )[0];
-  if (closest && Math.abs(closest.gb! - targetGb) <= 0.5) {
-    return { productId: closest.p.id };
-  }
+  const closest = [...candidates].sort(
+    (a, b) => Math.abs(a.gb - targetGb) - Math.abs(b.gb - targetGb),
+  );
+  const near = closest.filter((c) => Math.abs(c.gb - targetGb) <= 0.5);
+  const bestNear = pickBestRailwayCandidate(near);
+  if (bestNear) return { productId: bestNear.p.id };
 
   return {
     error: `No Railway product for ${network} ~${targetGb}GB (${volumeMb}MB). Set ${envKey} or sync product names.`,
