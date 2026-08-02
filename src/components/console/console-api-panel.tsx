@@ -158,6 +158,11 @@ export function ConsoleApiPanel({ initialKeys }: Props) {
 
       <AdminSection title="Endpoints">
         <div className="space-y-4 p-4 sm:p-5 text-sm text-white/80">
+          <p className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-amber-100/90">
+            Console sends debit your <strong>GB/MB balance</strong>, not your GHS wallet. For
+            AirtelTigo iShare use <code className="text-amber-200">network: &quot;at&quot;</code>{" "}
+            (MTN and Telecel are not enabled on console yet).
+          </p>
           <p className="text-white/55">Base URL: {base}</p>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="font-semibold text-white">Authorization</p>
@@ -171,12 +176,21 @@ export function ConsoleApiPanel({ initialKeys }: Props) {
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="font-semibold text-white">POST /api/v1/console/send</p>
+            <p className="mt-1 text-white/60">
+              Send data to a phone. <code className="text-amber-200">amount_mb</code> uses decimal
+              GB (1000 MB = 1 GB). <code className="text-amber-200">reference</code> is optional
+              idempotency key.
+            </p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-slate-100">{`{
   "recipient_phone": "0241234567",
-  "network": "mtn",
+  "network": "at",
   "amount_mb": 1000,
-  "reference": "optional-idempotency-key"
+  "reference": "your-order-id-123"
 }`}</pre>
+            <p className="mt-2 text-xs text-white/50">
+              Allowed values: <code>at</code> (iShare, active), <code>mtn</code>,{" "}
+              <code>telecel</code> (not enabled on console yet).
+            </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="font-semibold text-white">GET /api/v1/console/transactions</p>

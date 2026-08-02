@@ -18,9 +18,10 @@ import { Input } from "@/components/ui/input";
 import type { AdminConsoleVendorRow } from "@/lib/data/admin-console";
 import type { ConsolePricingTier } from "@/lib/console/pricing";
 import { formatConsoleData, gbToMb } from "@/lib/console/units";
+import { AdminConsoleApiKeyPanel } from "@/components/admin/admin-console-api-key-panel";
 import { cn } from "@/lib/utils";
 
-type PanelMode = "credit" | "debit";
+type PanelMode = "credit" | "debit" | "api_key";
 
 interface Props {
   vendors: AdminConsoleVendorRow[];
@@ -170,7 +171,16 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
         </label>
       </div>
 
-      {panelVendor && (
+      {panelVendor && panelVendorRow && panelMode === "api_key" && (
+        <AdminConsoleApiKeyPanel
+          vendorId={panelVendor}
+          agentName={panelVendorRow.businessName}
+          onClose={closePanel}
+          variant={vault ? "vault" : "default"}
+        />
+      )}
+
+      {panelVendor && panelVendorRow && panelMode !== "api_key" && (
         <div
           className={cn(
             "admin-console-alloc-panel mb-4 rounded-xl border p-4",
@@ -294,6 +304,14 @@ export function AdminConsoleBoard({ vendors: initial, tiers, variant = "default"
                       onClick={() => void toggleEnabled(row.vendorId, !row.enabled)}
                     >
                       {row.enabled ? "Disable" : "Enable"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={pending != null || !row.enabled}
+                      onClick={() => openPanel(row.vendorId, "api_key")}
+                    >
+                      API key
                     </Button>
                     <Button
                       size="sm"
