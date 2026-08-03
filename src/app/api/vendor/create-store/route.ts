@@ -10,6 +10,7 @@ import {
   attachReferralOnSignup,
   ensureVendorReferralCode,
 } from "@/lib/referrals/vendor-referral";
+import { createVendorStore } from "@/lib/vendor/create-store-core";
 import { tierUpdatesFor } from "@/lib/vendor/tiers";
 
 export async function POST(request: Request) {
@@ -67,22 +68,21 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: vendorId, error: rpcErr } = await supabase.rpc("create_store", {
-      p_business_name: businessName,
-      p_slug: slug,
-      p_emoji: emoji,
-      p_theme_color: themeColor,
-      p_whatsapp: whatsapp || null,
-      p_referral_code: referralCode || null,
+    const created = await createVendorStore({
+      userId: user.id,
+      businessName,
+      slug,
+      emoji,
+      themeColor,
+      whatsapp: whatsapp || null,
     });
 
-    if (rpcErr || !vendorId) {
-      const msg =
-        rpcErr?.message === "authentication_required"
-          ? "Please sign in"
-          : "Could not create store. Handle may already be taken.";
-      return NextResponse.json({ error: msg }, { status: 400 });
+    if (!created.ok) {
+      const status = created.code === "slug_taken" ? 409 : 400;
+      return NextResponse.json({ error: created.error }, { status });
     }
+
+    const vendorId = created.vendorId;
 
     const service = createServiceClient();
     const tierSettings = await getAgentTierSettings();

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createClient, createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { ensureVendorReferralCode } from "@/lib/referrals/vendor-referral";
+import { createVendorStore } from "@/lib/vendor/create-store-core";
 
 /**
  * Create an API-only vendor account (developer API access, no public storefront).
@@ -62,23 +63,21 @@ export async function POST(request: Request) {
     const suffix = Math.random().toString(36).slice(2, 6);
     const slug = `${base}-${suffix}`.slice(0, 40);
 
-    const { data: vendorId, error: rpcErr } = await supabase.rpc("create_store", {
-      p_business_name: businessName,
-      p_slug: slug,
-      p_emoji: "code",
-      p_theme_color: "#0A2E5D",
-      p_whatsapp: null,
-      p_referral_code: null,
+    const created = await createVendorStore({
+      userId: user.id,
+      businessName,
+      slug,
+      emoji: "code",
+      themeColor: "#0A2E5D",
+      whatsapp: null,
     });
 
-    if (rpcErr || !vendorId) {
-      const msg =
-        rpcErr?.message === "authentication_required"
-          ? "Please sign in"
-          : "Could not create API account. Please try again.";
-      console.error("[api-access] create_store", rpcErr);
-      return NextResponse.json({ error: msg }, { status: 400 });
+    if (!created.ok) {
+      console.error("[api-access] createVendorStore", created);
+      return NextResponse.json({ error: created.error }, { status: 400 });
     }
+
+    const vendorId = created.vendorId;
 
     // Flag as API-only, keep it unlisted and pending approval. We do NOT set
     // setup_fee_paid_at (fee waived) or kyc verified (so it never lists publicly).
