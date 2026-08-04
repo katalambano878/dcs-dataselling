@@ -134,12 +134,25 @@ function vendorName(
   return { name: row?.business_name ?? "—", slug: row?.slug ?? "" };
 }
 
-function paymentStatusForOrder(status: string, paymentRef: string | null): string {
-  if (["paid", "queued", "processing", "fulfilled"].includes(status)) {
-    return paymentRef ? "completed" : "completed";
-  }
-  if (status === "pending") return "pending";
+/**
+ * Payment outcome is separate from fulfilment/API delivery.
+ * Wallet/Paystack capture can succeed while the supplier later rejects the send —
+ * that must stay "completed" (or "refunded" once wallet money is returned), not "failed".
+ */
+function paymentStatusForOrder(
+  status: string,
+  paymentRef: string | null,
+  paymentProvider: string | null = null,
+): string {
   if (status === "refunded") return "refunded";
+  if (status === "pending") return "pending";
+
+  const paymentCaptured =
+    Boolean(paymentRef?.trim()) ||
+    ["wallet", "paystack", "moolre", "api"].includes((paymentProvider ?? "").toLowerCase()) ||
+    ["paid", "queued", "processing", "fulfilled"].includes(status);
+
+  if (paymentCaptured) return "completed";
   if (status === "failed") return "failed";
   return status;
 }
@@ -285,7 +298,11 @@ export async function fetchAdminOrderBoardRows(
         orderType: order.source === "bulk" ? "bulk" : order.source === "manual" ? "internal" : "wholesale",
         paymentMethod: order.payment_provider ?? "wallet",
         orderStatus: row.status,
-        paymentStatus: paymentStatusForOrder(order.status, order.payment_reference),
+        paymentStatus: paymentStatusForOrder(
+          order.status,
+          order.payment_reference,
+          order.payment_provider,
+        ),
         commission: null,
         apiStatus: row.supplier_status ?? order.supplier_status ?? row.status,
         apiSource: order.supplier ?? "skanka5",
@@ -309,8 +326,6 @@ export async function fetchAdminOrderBoardRows(
           .toLowerCase();
         if (!hay.includes(q)) continue;
       }
-
-      if (paymentStatus && !rowMatchesPaymentStatus(line, paymentStatus)) continue;
 
       rows.push(line);
     }
@@ -393,7 +408,11 @@ export async function fetchAdminOrderBoardRows(
         orderType: "storefront",
         paymentMethod: row.payment_provider ?? "—",
         orderStatus: row.status,
-        paymentStatus: paymentStatusForOrder(row.status, row.payment_reference),
+        paymentStatus: paymentStatusForOrder(
+          row.status,
+          row.payment_reference,
+          row.payment_provider,
+        ),
         commission,
         apiStatus: row.supplier_status ?? row.status,
         apiSource: row.supplier,
@@ -412,8 +431,6 @@ export async function fetchAdminOrderBoardRows(
           .toLowerCase();
         if (!hay.includes(q)) continue;
       }
-
-      if (paymentStatus && !rowMatchesPaymentStatus(line, paymentStatus)) continue;
 
       rows.push(line);
     }
@@ -439,10 +456,18 @@ export async function fetchAdminOrderBoardRows(
       row.walletRefunded =
         refundedRefs.has(wholesaleItemRefundReference(row.id)) ||
         refundedRefs.has(wholesaleOrderRefundReference(row.orderReference));
+      if (row.walletRefunded) {
+        row.paymentStatus = "refunded";
+      }
     }
   }
 
-  const sorted = rows.sort(
+  // Apply pay-status filter after refund annotation so refunded wallet lines classify correctly.
+  const paymentFiltered = paymentStatus
+    ? rows.filter((row) => rowMatchesPaymentStatus(row, paymentStatus))
+    : rows;
+
+  const sorted = paymentFiltered.sort(
     (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
   );
 

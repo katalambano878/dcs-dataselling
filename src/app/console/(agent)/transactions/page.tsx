@@ -27,17 +27,18 @@ function parseStatus(raw: string | undefined): ConsoleSendStatusFilter {
 export default async function ConsoleTransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
   const status = parseStatus(sp.status);
+  const q = (sp.q ?? "").trim();
   const vendor = await getCurrentVendor();
   const host = (await headers()).get("host");
   const onConsole = isConsoleHost(host);
 
   const result = vendor
-    ? await fetchConsoleSendsPaginated(vendor.id, { page, pageSize: 20, status })
+    ? await fetchConsoleSendsPaginated(vendor.id, { page, pageSize: 20, status, q })
     : { rows: [], total: 0, page: 1, pageSize: 20 };
 
   return (
@@ -54,6 +55,7 @@ export default async function ConsoleTransactionsPage({
         page={result.page}
         pageSize={result.pageSize}
         status={status}
+        q={q}
         onConsoleHost={onConsole}
       />
     </AdminPageRoot>

@@ -320,6 +320,16 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
   else if (anyFailed && (anyAccepted || anyManual)) aggregateStatus = "partial";
   else aggregateStatus = "failed";
 
+  // Mark failed lines before parent sync so sync does not reset a failed parent
+  // back to queued (which previously skipped the wallet refund).
+  if (parentStatus === "failed") {
+    await service
+      .from("wholesale_order_items")
+      .update({ status: "failed" })
+      .eq("wholesale_order_id", row.id)
+      .neq("status", "fulfilled");
+  }
+
   await service
     .from("wholesale_orders")
     .update({
@@ -342,11 +352,6 @@ export async function dispatchWholesaleOrderToSupplier(orderId: string): Promise
   await syncWholesaleOrderFromItems(service, row.id);
 
   if (parentStatus === "failed") {
-    await service
-      .from("wholesale_order_items")
-      .update({ status: "failed" })
-      .eq("wholesale_order_id", row.id)
-      .neq("status", "fulfilled");
     await refundWholesaleOrderToWallet(row.id);
   }
 }

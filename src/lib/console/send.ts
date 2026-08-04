@@ -227,7 +227,12 @@ export async function fetchConsoleSends(vendorId: string, limit = 50): Promise<C
 
 export async function fetchConsoleSendsPaginated(
   vendorId: string,
-  opts: { page?: number; pageSize?: number; status?: ConsoleSendStatusFilter } = {},
+  opts: {
+    page?: number;
+    pageSize?: number;
+    status?: ConsoleSendStatusFilter;
+    q?: string;
+  } = {},
 ): Promise<PaginatedConsoleSends> {
   if (!hasSupabaseConfig()) {
     return { rows: [], total: 0, page: 1, pageSize: 20 };
@@ -237,6 +242,7 @@ export async function fetchConsoleSendsPaginated(
   const pageSize = Math.min(50, Math.max(10, opts.pageSize ?? 20));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+  const q = (opts.q ?? "").trim();
   const service = createServiceClient();
   await reconcileStuckConsoleSends(vendorId);
 
@@ -259,6 +265,16 @@ export async function fetchConsoleSendsPaginated(
       query = query.eq("status", "processing").neq("supplier_status", "awaiting_manual");
     } else {
       query = query.eq("status", opts.status);
+    }
+  }
+
+  if (q) {
+    const safe = q.replace(/[%_,()]/g, "").slice(0, 64);
+    if (safe) {
+      const pattern = `%${safe}%`;
+      query = query.or(
+        `recipient_phone.ilike.${pattern},reference.ilike.${pattern},supplier_reference.ilike.${pattern}`,
+      );
     }
   }
 
