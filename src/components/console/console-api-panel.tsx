@@ -193,6 +193,25 @@ export function ConsoleApiPanel({ initialKeys }: Props) {
             </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="font-semibold text-white">POST /api/v1/console/status</p>
+            <p className="mt-1 text-white/60">
+              Call this from your old shop when you mark an order delivered or failed so the
+              console history here stays in sync. Use the same{" "}
+              <code className="text-amber-200">reference</code> you sent with{" "}
+              <code className="text-amber-200">/send</code>. Failed updates refund the MB
+              balance when the send was still open.
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-slate-100">{`{
+  "reference": "your-order-id-123",
+  "status": "completed",
+  "note": "optional"
+}`}</pre>
+            <p className="mt-2 text-xs text-white/50">
+              Allowed status: <code>completed</code> / <code>delivered</code>, or{" "}
+              <code>failed</code> / <code>undelivered</code>.
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <p className="font-semibold text-white">GET /api/v1/console/transactions</p>
             <p className="mt-1 text-white/60">Recent send history for this console account.</p>
           </div>

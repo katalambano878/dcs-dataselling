@@ -205,6 +205,126 @@ function mapSendRow(vendorId: string, row: Record<string, unknown>): ConsoleSend
   };
 }
 
+export type ConsoleExternalStatus = "completed" | "failed";
+
+/**
+ * Old-site / telephone callback: update a console send after they mark it
+ * delivered or failed on their shop. Idempotent for the same terminal status.
+ */
+export async function updateConsoleSendStatus(params: {
+  vendorId: string;
+  reference: string;
+  status: ConsoleExternalStatus;
+  note?: string | null;
+}): Promise<ConsoleSendResult> {
+  if (!hasSupabaseConfig()) return { ok: false, error: "Not configured" };
+
+  const reference = params.reference.trim();
+  if (!reference) {
+    return { ok: false, error: "Reference is required", code: "invalid_reference" };
+  }
+
+  const service = createServiceClient();
+  const { data: existing } = await service
+    .from("console_send_ledger")
+    .select(
+      "id, vendor_id, reference, status, recipient_phone, network, amount_mb, balance_after_mb, supplier, supplier_reference, supplier_status, supplier_error, batch_id, created_at, completed_at",
+    )
+    .eq("reference", reference)
+    .eq("vendor_id", params.vendorId)
+    .maybeSingle();
+
+  if (!existing) {
+    return { ok: false, error: "Send not found for this reference", code: "not_found" };
+  }
+
+  const row = existing as Record<string, unknown> & {
+    id: string;
+    status: string;
+    amount_mb: number;
+  };
+
+  const current = String(row.status);
+  const next = params.status;
+  const note = params.note?.trim().slice(0, 500) || null;
+
+  if (current === next) {
+    return { ok: true, send: mapSendRow(params.vendorId, row) };
+  }
+
+  // Don't reopen a failed send as completed without a new debit/send.
+  if (current === "failed" && next === "completed") {
+    return {
+      ok: false,
+      error: "This send already failed. Place a new send if you need to retry.",
+      code: "already_failed",
+    };
+  }
+
+  if (next === "completed") {
+    const { error } = await service
+      .from("console_send_ledger")
+      .update({
+        status: "completed",
+        supplier_status: "delivered",
+        supplier_error: note,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("vendor_id", params.vendorId);
+
+    if (error) {
+      return { ok: false, error: error.message ?? "Could not update status" };
+    }
+
+    return {
+      ok: true,
+      send: mapSendRow(params.vendorId, {
+        ...row,
+        status: "completed",
+        supplier_status: "delivered",
+        supplier_error: note,
+        completed_at: new Date().toISOString(),
+      }),
+    };
+  }
+
+  // failed — refund console MB when the debit was not already reversed
+  let balanceAfterMb =
+    row.balance_after_mb != null ? Number(row.balance_after_mb) : null;
+  if (current !== "failed") {
+    balanceAfterMb = await creditConsoleBalance(params.vendorId, Number(row.amount_mb));
+  }
+
+  const { error } = await service
+    .from("console_send_ledger")
+    .update({
+      status: "failed",
+      supplier_status: "failed",
+      supplier_error: note ?? "Marked failed by old site",
+      balance_after_mb: balanceAfterMb,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("vendor_id", params.vendorId);
+
+  if (error) {
+    return { ok: false, error: error.message ?? "Could not update status" };
+  }
+
+  return {
+    ok: true,
+    send: mapSendRow(params.vendorId, {
+      ...row,
+      status: "failed",
+      supplier_status: "failed",
+      supplier_error: note ?? "Marked failed by old site",
+      balance_after_mb: balanceAfterMb,
+      completed_at: new Date().toISOString(),
+    }),
+  };
+}
+
 export interface PaginatedConsoleSends {
   rows: ConsoleSendRow[];
   total: number;

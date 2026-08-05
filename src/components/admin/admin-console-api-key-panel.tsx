@@ -134,7 +134,8 @@ export function AdminConsoleApiKeyPanel({
             Console API key — {agentName}
           </p>
           <p className={cn("mt-1 text-xs", vault ? "text-white/60" : "text-blue-800")}>
-            Issue a key for the old site to call <code>{base}/api/v1/console/send</code>. Debits
+            Issue a key for the old site to call <code>{base}/api/v1/console/send</code> and{" "}
+            <code>{base}/api/v1/console/status</code> (when they mark delivered/failed). Debits
             use this agent&apos;s console MB balance (not GHS wallet). For iShare use{" "}
             <code>&quot;network&quot;: &quot;at&quot;</code>.
           </p>
