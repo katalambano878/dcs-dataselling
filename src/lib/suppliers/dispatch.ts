@@ -574,6 +574,139 @@ async function completeWholesaleParentIfReady(
   }
 }
 
+/**
+ * Old-site / developer API callback: mark a wholesale order delivered or failed
+ * by our order reference (not supplier txn id). Idempotent for the same terminal status.
+ */
+export async function applyWholesaleOrderExternalStatus(args: {
+  vendorId: string;
+  reference: string;
+  outcome: "fulfilled" | "failed";
+  note?: string | null;
+}): Promise<
+  | { ok: true; orderId: string; reference: string; status: string; already?: boolean }
+  | { ok: false; error: string; code: string }
+> {
+  if (!hasSupabaseConfig()) {
+    return { ok: false, error: "Not configured", code: "not_configured" };
+  }
+
+  const reference = args.reference.trim();
+  if (!reference) {
+    return { ok: false, error: "Reference is required", code: "invalid_reference" };
+  }
+
+  const service = createServiceClient();
+  const { data: order } = await service
+    .from("wholesale_orders")
+    .select("id, reference, status, vendor_id")
+    .eq("vendor_id", args.vendorId)
+    .eq("reference", reference)
+    .maybeSingle();
+
+  const row = order as {
+    id: string;
+    reference: string;
+    status: string;
+    vendor_id: string;
+  } | null;
+
+  if (!row) {
+    return { ok: false, error: "Order not found for this reference", code: "not_found" };
+  }
+
+  const current = row.status;
+  const next = args.outcome;
+
+  if (current === next) {
+    return {
+      ok: true,
+      orderId: row.id,
+      reference: row.reference,
+      status: current,
+      already: true,
+    };
+  }
+
+  if (current === "failed" && next === "fulfilled") {
+    return {
+      ok: false,
+      error: "This order already failed. Place a new order if you need to retry.",
+      code: "already_failed",
+    };
+  }
+
+  if (current === "fulfilled" && next === "failed") {
+    return {
+      ok: false,
+      error: "This order is already fulfilled and cannot be marked failed.",
+      code: "already_fulfilled",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const note = args.note?.trim().slice(0, 500) || null;
+  const isFulfilled = next === "fulfilled";
+
+  const itemPatch = {
+    status: isFulfilled ? "fulfilled" : "failed",
+    supplier_status: isFulfilled ? "delivered" : "failed",
+    supplier_error: note,
+    supplier_fulfilled_at: isFulfilled ? now : null,
+  };
+
+  let itemQuery = service
+    .from("wholesale_order_items")
+    .update(itemPatch)
+    .eq("wholesale_order_id", row.id);
+
+  // Never reopen fulfilled lines; only close open work when marking failed/delivered.
+  itemQuery = isFulfilled
+    ? itemQuery.in("status", ["queued", "pending", "processing", "failed"])
+    : itemQuery.in("status", ["queued", "pending", "processing"]);
+
+  const { error: itemErr } = await itemQuery;
+  if (itemErr) {
+    return { ok: false, error: itemErr.message ?? "Could not update lines", code: "update_failed" };
+  }
+
+  await service
+    .from("wholesale_orders")
+    .update({
+      supplier_status: isFulfilled ? "delivered" : "failed",
+      supplier_error: note,
+    })
+    .eq("id", row.id);
+
+  const webhookFired = new Set<string>();
+  await completeWholesaleParentIfReady(row.id, now, webhookFired);
+
+  if (isFulfilled) {
+    const { data: items } = await service
+      .from("wholesale_order_items")
+      .select("id")
+      .eq("wholesale_order_id", row.id)
+      .eq("status", "fulfilled");
+    for (const it of (items as { id: string }[] | null) ?? []) {
+      after(() => tryCreditReferralForWholesaleItem(it.id));
+      after(() => notifyWholesaleItemDelivered(it.id));
+    }
+  }
+
+  const { data: refreshed } = await service
+    .from("wholesale_orders")
+    .select("status")
+    .eq("id", row.id)
+    .maybeSingle();
+
+  return {
+    ok: true,
+    orderId: row.id,
+    reference: row.reference,
+    status: (refreshed as { status: string } | null)?.status ?? next,
+  };
+}
+
 async function fireVendorWebhookForWholesaleOrder(
   wholesaleOrderId: string,
   event: "order.fulfilled" | "order.failed",

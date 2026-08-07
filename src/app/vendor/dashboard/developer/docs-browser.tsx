@@ -180,6 +180,26 @@ const ENDPOINTS: Endpoint[] = [
     },
   },
   {
+    id: "order-status",
+    method: "POST",
+    path: "/api/v1/orders/{reference}/status",
+    title: "Update order status (old site)",
+    description:
+      "Push delivered/failed from your old shop so DCS Elite matches. Use the same order reference from POST /orders.",
+    request: {
+      body: {
+        status: "fulfilled",
+        note: "optional",
+      },
+    },
+    response: {
+      ok: true,
+      reference: "my-order-001",
+      status: "fulfilled",
+      already: false,
+    },
+  },
+  {
     id: "order-list",
     method: "GET",
     path: "/api/v1/orders?limit=25&status=fulfilled",

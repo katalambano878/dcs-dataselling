@@ -233,12 +233,36 @@ With `dry_run: true` you instead get `valid_count`, `invalid_count`, `total`,
 `wallet_balance`, `sufficient_funds`, and the resolved `lines` and `errors`, so
 you can sanity-check before charging.
 
+### POST /orders/{reference}/status
+
+Call this from your old shop when you mark an API order **delivered** or **failed**
+so DCS Elite updates to match (Telecel/MTN wallet orders stay on `processing`
+until something closes them).
+
+```bash
+curl -X POST https://dcselite.com/api/v1/orders/my-order-001/status \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "fulfilled",
+    "note": "optional"
+  }'
+```
+
+| Field | Required | Notes |
+| ----- | -------- | ----- |
+| `status` | yes | `fulfilled` / `completed` / `delivered`, or `failed` / `undelivered` |
+| `note` | no | Stored on the order/lines (max 500 chars) |
+
+Failed updates refund the wallet for failed lines (same as supplier failure).
+
 ### GET /orders/{reference}
 
 ```bash
 curl https://dcselite.com/api/v1/orders/my-order-001 \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
+
 
 ```json
 {
