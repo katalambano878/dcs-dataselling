@@ -6,8 +6,9 @@ import { randomUUID } from "crypto";
 import { query } from "./pool";
 import { authJwtSecret } from "./mode";
 
-const ACCESS_TTL_SEC = 60 * 60 * 24 * 7; // 7 days
-const REFRESH_TTL_SEC = 60 * 60 * 24 * 30; // 30 days
+/** Stay signed in across visits; expire after 48h without a refresh. */
+const ACCESS_TTL_SEC = 60 * 60 * 24 * 2; // 48 hours
+const REFRESH_TTL_SEC = 60 * 60 * 24 * 2; // 48 hours
 
 export interface AuthUser {
   id: string;

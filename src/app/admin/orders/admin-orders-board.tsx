@@ -762,7 +762,14 @@ export function AdminOrdersBoard({
                   <AdminTd className="num text-xs">
                     {row.commission != null ? formatGHS(row.commission) : "—"}
                   </AdminTd>
-                  <AdminTd className="max-w-[100px] truncate text-xs">{row.apiStatus ?? "—"}</AdminTd>
+                  <AdminTd className="max-w-[160px] text-xs">
+                    <span className="block truncate">{row.apiStatus ?? "—"}</span>
+                    {row.apiError ? (
+                      <span className="mt-0.5 block truncate text-[11px] text-rose-600" title={row.apiError}>
+                        {row.apiError}
+                      </span>
+                    ) : null}
+                  </AdminTd>
                   <AdminTd className="text-xs">{row.apiSource ?? "—"}</AdminTd>
                   <AdminTd className="max-w-[90px] truncate font-mono text-xs">
                     {row.apiReference ?? "—"}

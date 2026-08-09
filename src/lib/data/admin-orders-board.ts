@@ -57,6 +57,7 @@ export interface AdminOrderBoardRow {
   paymentStatus: string;
   commission: number | null;
   apiStatus: string | null;
+  apiError: string | null;
   apiSource: string | null;
   apiReference: string | null;
   wholesaleOrderId?: string;
@@ -195,7 +196,7 @@ export async function fetchAdminOrderBoardRows(
         `
         id, recipient_phone, unit_price, line_total, status, supplier_order_code, supplier_status, supplier_error, created_at,
         wholesale_orders!inner (
-          id, reference, status, source, payment_provider, payment_reference, supplier, supplier_reference, supplier_status, created_at,
+          id, reference, status, source, payment_provider, payment_reference, supplier, supplier_reference, supplier_status, supplier_error, created_at,
           vendors!inner ( business_name, slug )
         ),
         wholesale_bundles!inner ( id, name, network, data_mb, sku, active )
@@ -250,6 +251,7 @@ export async function fetchAdminOrderBoardRows(
               supplier: string | null;
               supplier_reference: string | null;
               supplier_status: string | null;
+              supplier_error: string | null;
               created_at: string;
               vendors: { business_name: string; slug: string } | { business_name: string; slug: string }[];
             }
@@ -263,6 +265,7 @@ export async function fetchAdminOrderBoardRows(
               supplier: string | null;
               supplier_reference: string | null;
               supplier_status: string | null;
+              supplier_error: string | null;
               created_at: string;
               vendors: { business_name: string; slug: string } | { business_name: string; slug: string }[];
             }>;
@@ -305,6 +308,7 @@ export async function fetchAdminOrderBoardRows(
         ),
         commission: null,
         apiStatus: row.supplier_status ?? order.supplier_status ?? row.status,
+        apiError: row.supplier_error ?? order.supplier_error ?? null,
         apiSource: order.supplier ?? "skanka5",
         // Prefer per-line supplier txn code (e.g. Shop DCS txn_…) over parent bulk ref.
         apiReference: row.supplier_order_code ?? order.supplier_reference,
@@ -382,6 +386,7 @@ export async function fetchAdminOrderBoardRows(
         supplier_reference: string | null;
         supplier_order_code: string | null;
         supplier_status: string | null;
+        supplier_error: string | null;
         created_at: string;
         bundle_id: string;
         vendors: { business_name: string; slug: string } | { business_name: string; slug: string }[];
@@ -415,6 +420,7 @@ export async function fetchAdminOrderBoardRows(
         ),
         commission,
         apiStatus: row.supplier_status ?? row.status,
+        apiError: row.supplier_error ?? null,
         apiSource: row.supplier,
         apiReference: row.supplier_reference,
       };

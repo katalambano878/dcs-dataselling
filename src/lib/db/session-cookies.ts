@@ -5,8 +5,7 @@ import { cookies } from "next/headers";
 export const ACCESS_COOKIE = "sb-access-token";
 export const REFRESH_COOKIE = "sb-refresh-token";
 
-const WEEK_SEC = 60 * 60 * 24 * 7;
-const MONTH_SEC = 60 * 60 * 24 * 30;
+const SESSION_SEC = 60 * 60 * 24 * 2; // 48 hours — match auth token TTL
 
 function cookieBase(maxAge: number) {
   return {
@@ -34,9 +33,9 @@ export async function setPlainPgSessionCookies(session: {
   expires_in?: number;
 }): Promise<void> {
   const jar = await cookies();
-  const accessMax = session.expires_in && session.expires_in > 0 ? session.expires_in : WEEK_SEC;
+  const accessMax = session.expires_in && session.expires_in > 0 ? session.expires_in : SESSION_SEC;
   jar.set(ACCESS_COOKIE, session.access_token, cookieBase(accessMax));
-  jar.set(REFRESH_COOKIE, session.refresh_token, cookieBase(MONTH_SEC));
+  jar.set(REFRESH_COOKIE, session.refresh_token, cookieBase(SESSION_SEC));
 }
 
 export async function clearPlainPgSessionCookies(): Promise<void> {

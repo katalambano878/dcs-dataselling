@@ -65,6 +65,16 @@ export function normalizeIshareMsisdn(raw: string): string | null {
 }
 
 /**
+ * AT / AirtelTigo local prefixes commonly accepted by iShare.
+ * MTN (024/054/055/059) and Telecel (020/050) are rejected upstream with a bare "Failed".
+ */
+const AT_MSISDN_PREFIXES = ["026", "027", "056", "057", "023"] as const;
+
+export function isLikelyAtMsisdn(localPhone: string): boolean {
+  return AT_MSISDN_PREFIXES.some((p) => localPhone.startsWith(p));
+}
+
+/**
  * Map an internal volume to the iShare `data` field.
  *
  * VERIFIED LIVE (2026-07-10): `data` is in MB — a push of data=50 deducted
@@ -255,6 +265,18 @@ export async function submitSingleOrder(
   const phone = normalizeIshareMsisdn(params.msisdn);
   if (!phone) {
     const error = `Invalid phone: ${params.msisdn}`;
+    await logSupplierEvent({
+      eventType: "submit_single",
+      scope: params.scope,
+      reference: params.reference,
+      ok: false,
+      error,
+    });
+    return { ok: false, status: 0, error };
+  }
+
+  if (!isLikelyAtMsisdn(phone)) {
+    const error = `iShare only accepts AirtelTigo numbers (026/027/056/057). ${phone} looks like another network.`;
     await logSupplierEvent({
       eventType: "submit_single",
       scope: params.scope,
