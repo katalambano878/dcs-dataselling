@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AT_MSISDN_PREFIXES, normalizeGhanaMsisdn } from "@/lib/phone/ghana";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
@@ -57,19 +58,14 @@ export function getIshareApiUrl(): string {
 
 /** Normalize to local 0XXXXXXXXX format expected by the `share` field. */
 export function normalizeIshareMsisdn(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("0")) return digits;
-  if (digits.length === 12 && digits.startsWith("233")) return `0${digits.slice(3)}`;
-  if (digits.length === 9) return `0${digits}`;
-  return null;
+  return normalizeGhanaMsisdn(raw);
 }
 
 /**
  * AT / AirtelTigo local prefixes commonly accepted by iShare.
- * MTN (024/054/055/059) and Telecel (020/050) are rejected upstream with a bare "Failed".
+ * MTN (024/054/025/053/055/059) and Telecel (020/050) are rejected upstream
+ * with a bare "Failed".
  */
-const AT_MSISDN_PREFIXES = ["026", "027", "056", "057", "023"] as const;
-
 export function isLikelyAtMsisdn(localPhone: string): boolean {
   return AT_MSISDN_PREFIXES.some((p) => localPhone.startsWith(p));
 }
@@ -81,12 +77,15 @@ export function isLikelyAtMsisdn(localPhone: string): boolean {
  * exactly 50 from the merchant balance (4,194,254 → 4,194,204).
  *
  * PLATFORM RULE (admin, 2026-07-14): 1 GB = 1000 MB everywhere. A 1GB sale
- * pushes exactly 1000 — never 1024, which silently over-debits the merchant
- * balance by 2.4% per send.
+ * pushes exactly 1000 — never 1024. Legacy binary catalogue rows (1024, 30720…)
+ * are remapped to decimal MB; small non-GB volumes pass through unchanged.
  */
 export function volumeDataFromMb(volumeMb: number, scope: SupplierOrderScope): string {
   void scope;
   if (!Number.isFinite(volumeMb) || volumeMb <= 0) return "0";
+  if (volumeMb >= 1024 && volumeMb % 1024 === 0) {
+    return String(Math.round(volumeMb / 1024) * 1000);
+  }
   return String(Math.max(1, Math.round(volumeMb)));
 }
 

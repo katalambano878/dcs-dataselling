@@ -1,7 +1,9 @@
 import "server-only";
 
 import crypto from "crypto";
+import { normalizeGhanaMsisdn } from "@/lib/phone/ghana";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { decimalMbFromDataMb } from "./volume";
 import type { SupplierOrderScope } from "./types";
 
 /**
@@ -80,23 +82,17 @@ export function getSkanka5NetworkId(network: Skanka5NetworkSlug): number | null 
 
 /** Normalize a Ghana phone number to the local 0XXXXXXXXX format Skanka5 expects. */
 export function normalizeMsisdn(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("0")) return digits;
-  if (digits.length === 12 && digits.startsWith("233")) return `0${digits.slice(3)}`;
-  if (digits.length === 9) return `0${digits}`;
-  return null;
+  return normalizeGhanaMsisdn(raw);
 }
 
 /**
  * Map our catalogue `data_mb` to Skanka5 `volume_mb` values from
  * `/fetch-data-packages` (decimal GB × 1000, e.g. 1GB → 1000).
  *
- * Platform rule: 1 GB = 1000 MB. Legacy binary bundles (1024, 2048…) still
- * round to the same decimal GB.
+ * Handles legacy binary SKUs (30720 → 30000, not 31000).
  */
 export function toSkanka5VolumeMb(dataMb: number): number {
-  if (!Number.isFinite(dataMb) || dataMb <= 0) return 0;
-  return Math.round(dataMb / 1000) * 1000;
+  return decimalMbFromDataMb(dataMb);
 }
 
 function extractApiError(parsed: unknown, status: number): string {

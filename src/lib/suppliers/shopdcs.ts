@@ -1,6 +1,8 @@
 import "server-only";
 
+import { normalizeGhanaMsisdn } from "@/lib/phone/ghana";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { gbFromDataMb } from "./volume";
 import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
@@ -111,11 +113,7 @@ export function getShopDcsNetworkId(network: SupplierNetworkSlug): number | null
 
 /** Shop DCS expects a 10-digit local MSISDN (0XXXXXXXXX). */
 export function toShopDcsPhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("0")) return digits;
-  if (digits.length === 12 && digits.startsWith("233")) return `0${digits.slice(3)}`;
-  if (digits.length === 9) return `0${digits}`;
-  return null;
+  return normalizeGhanaMsisdn(raw);
 }
 
 /**
@@ -125,15 +123,7 @@ export function toShopDcsPhone(raw: string): string | null {
  *
  * Override with SHOP_DCS_SHARED_BUNDLE_UNIT=gb to send whole-GB integers instead.
  */
-export function gbFromDataMb(dataMb: number): number {
-  const as1024 = dataMb / 1024;
-  const as1000 = dataMb / 1000;
-  const pick =
-    Math.abs(as1024 - Math.round(as1024)) <= Math.abs(as1000 - Math.round(as1000))
-      ? as1024
-      : as1000;
-  return Math.max(1, Math.round(pick));
-}
+export { gbFromDataMb };
 
 export function sharedBundleFromMb(dataMb: number, matchedPackageVolumeGb?: number): number {
   const unit = (process.env.SHOP_DCS_SHARED_BUNDLE_UNIT ?? "mb").trim().toLowerCase();

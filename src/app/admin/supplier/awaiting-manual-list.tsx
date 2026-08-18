@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, X, MessageSquare } from "lucide-react";
+import { Check, RefreshCw, X, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
@@ -9,17 +9,13 @@ import { formatDistanceToNow } from "date-fns";
 import type { ManualOrderRow } from "@/lib/data/supplier-logs";
 import { formatDataAmount } from "@/lib/format";
 
-interface Props {
-  orders: ManualOrderRow[];
-}
-
 const NETWORK_PILL: Record<string, string> = {
   mtn: "bg-amber-400 text-slate-900",
   telecel: "bg-red-500 text-white",
   at: "bg-red-600 text-white",
 };
 
-export function AwaitingManualList({ orders }: Props) {
+export function AwaitingManualList({ orders }: { orders: ManualOrderRow[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -52,6 +48,26 @@ export function AwaitingManualList({ orders }: Props) {
     }
   }
 
+  async function forwardToApi(o: ManualOrderRow) {
+    setBusyId(o.id);
+    try {
+      const res = await fetch("/api/admin/supplier/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: o.scope, orderId: o.dispatchOrderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        toast.error(data.error ?? "Could not forward to API");
+        return;
+      }
+      toast.success("Forwarded to supplier API");
+      startTransition(() => router.refresh());
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (orders.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-white/70 p-6 text-center text-xs text-muted">
@@ -65,7 +81,7 @@ export function AwaitingManualList({ orders }: Props) {
     <ul className="space-y-2">
       {orders.map((o) => (
         <li
-          key={o.id}
+          key={`${o.scope}-${o.id}`}
           className="rounded-xl border border-border bg-white p-3 text-sm"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -82,6 +98,9 @@ export function AwaitingManualList({ orders }: Props) {
                   {formatDataAmount(o.dataMb)}
                 </span>
                 <span className="text-xs text-muted">{o.bundleName}</span>
+                {o.scope === "wholesale_order" ? (
+                  <span className="text-[10px] font-semibold uppercase text-muted">Wholesale</span>
+                ) : null}
               </div>
               <p className="mt-1 font-mono text-xs text-muted">
                 {o.reference} · → {o.recipientPhone}
@@ -95,27 +114,40 @@ export function AwaitingManualList({ orders }: Props) {
               <button
                 type="button"
                 disabled={pending || busyId === o.id}
-                onClick={() => resolve(o.id, "fulfilled")}
-                className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                onClick={() => void forwardToApi(o)}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
               >
-                <Check className="h-3.5 w-3.5" />
-                Fulfilled
+                <RefreshCw className="h-3.5 w-3.5" />
+                Forward to API
               </button>
-              <button
-                type="button"
-                disabled={pending || busyId === o.id}
-                onClick={() =>
-                  setNoteOpenFor((id) => (id === o.id ? null : o.id))
-                }
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-foreground hover:bg-slate-50 disabled:opacity-50"
-              >
-                <X className="h-3.5 w-3.5" />
-                Failed
-              </button>
+              {o.scope === "customer_order" ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={pending || busyId === o.id}
+                    onClick={() => resolve(o.id, "fulfilled")}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Fulfilled
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending || busyId === o.id}
+                    onClick={() =>
+                      setNoteOpenFor((id) => (id === o.id ? null : o.id))
+                    }
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-foreground hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Failed
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
 
-          {noteOpenFor === o.id && (
+          {noteOpenFor === o.id && o.scope === "customer_order" && (
             <div className="mt-3 rounded-lg border border-border bg-slate-50 p-3">
               <label className="block text-[11px] font-semibold text-muted">
                 <span className="inline-flex items-center gap-1">

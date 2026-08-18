@@ -1,6 +1,8 @@
 import "server-only";
 
+import { normalizeGhanaMsisdn } from "@/lib/phone/ghana";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { gbFromDataMb } from "./volume";
 import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
@@ -79,11 +81,7 @@ export function isRailwayExternalConfigured(): boolean {
 }
 
 export function normalizeRailwayPhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("0")) return digits;
-  if (digits.length === 12 && digits.startsWith("233")) return `0${digits.slice(3)}`;
-  if (digits.length === 9) return `0${digits}`;
-  return null;
+  return normalizeGhanaMsisdn(raw);
 }
 
 async function logSupplierEvent(input: LogInput): Promise<void> {
@@ -202,11 +200,9 @@ function detectNetworkFromText(text: string): SupplierNetworkSlug | null {
 }
 
 function extractTargetGb(volumeMb: number): number {
-  // Platform rule: 1 GB = 1000 MB. Legacy 1024-based bundles still round to
-  // the same target (1024/1000 → 1GB).
-  const gb = volumeMb / 1000;
-  if (gb <= 0.75) return 1;
-  return Math.round(gb);
+  // Decimal (1000) and legacy binary (1024) catalogue MB → whole GB.
+  // 30720 (30×1024) must resolve to 30GB, not Math.round(30.72)=31.
+  return gbFromDataMb(volumeMb);
 }
 
 function extractGbFromProductText(text: string): number | null {
@@ -427,23 +423,27 @@ export async function submitBulkOrders(
 > {
   const items: Array<{ productId: string | number; quantity: number; mobileNumber: string }> = [];
   const rows: Array<{ order_code?: string; msisdn?: string; status?: string }> = [];
+  const skipReasons: string[] = [];
 
   for (const r of params.recipients) {
     const phone = normalizeRailwayPhone(r.msisdn);
     if (!phone) {
       rows.push({ msisdn: r.msisdn, status: "failed" });
+      skipReasons.push(`invalid phone ${r.msisdn}`);
       continue;
     }
     const resolved = await resolveRailwayProductId(params.network, r.volumeMb);
     if ("error" in resolved) {
       rows.push({ msisdn: r.msisdn, status: "failed" });
+      skipReasons.push(resolved.error);
       continue;
     }
     items.push({ productId: resolved.productId, quantity: 1, mobileNumber: phone });
   }
 
   if (items.length === 0) {
-    return { ok: false, status: 0, error: "No valid recipients or products" };
+    const detail = skipReasons[0] ?? "check phone numbers and bundle sizes";
+    return { ok: false, status: 0, error: `No valid recipients or products: ${detail}` };
   }
 
   const body = { items };

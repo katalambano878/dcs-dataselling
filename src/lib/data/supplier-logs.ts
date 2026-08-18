@@ -148,6 +148,8 @@ export async function fetchSupplierSummary(): Promise<SupplierLogSummary> {
 export interface ManualOrderRow {
   scope: "customer_order" | "wholesale_order";
   id: string;
+  /** Parent wholesale order id when scope is wholesale_order (for Forward to API). */
+  dispatchOrderId: string;
   reference: string;
   recipientPhone: string;
   network: string;
@@ -161,24 +163,36 @@ export async function fetchAwaitingManualOrders(): Promise<ManualOrderRow[]> {
   if (!hasSupabaseConfig()) return [];
   const service = createServiceClient();
 
-  const { data, error } = await service
-    .from("orders")
-    .select(
-      `
+  const [cust, whs] = await Promise.all([
+    service
+      .from("orders")
+      .select(
+        `
       id, reference, recipient_phone, supplier, created_at,
       bundles ( network, data_mb, name )
     `,
-    )
-    .eq("supplier_status", "awaiting_manual")
-    .order("created_at", { ascending: false })
-    .limit(100);
+      )
+      .eq("supplier_status", "awaiting_manual")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    service
+      .from("wholesale_order_items")
+      .select(
+        `
+      id, recipient_phone, created_at, wholesale_order_id,
+      wholesale_orders ( reference, supplier ),
+      wholesale_bundles ( network, data_mb, name )
+    `,
+      )
+      .eq("supplier_status", "awaiting_manual")
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
 
-  if (error) {
-    console.error("[fetchAwaitingManualOrders]", error);
-    return [];
-  }
+  if (cust.error) console.error("[fetchAwaitingManualOrders] customer", cust.error);
+  if (whs.error) console.error("[fetchAwaitingManualOrders] wholesale", whs.error);
 
-  type Row = {
+  type CustRow = {
     id: string;
     reference: string;
     recipient_phone: string;
@@ -190,11 +204,29 @@ export async function fetchAwaitingManualOrders(): Promise<ManualOrderRow[]> {
       | null;
   };
 
-  return ((data ?? []) as Row[]).map((r) => {
+  type WhsRow = {
+    id: string;
+    recipient_phone: string;
+    created_at: string;
+    wholesale_order_id: string;
+    wholesale_orders:
+      | { reference: string; supplier: string | null }
+      | { reference: string; supplier: string | null }[]
+      | null;
+    wholesale_bundles:
+      | { network: string; data_mb: number; name: string }
+      | { network: string; data_mb: number; name: string }[]
+      | null;
+  };
+
+  const out: ManualOrderRow[] = [];
+
+  for (const r of (cust.data ?? []) as CustRow[]) {
     const b = Array.isArray(r.bundles) ? r.bundles[0] : r.bundles;
-    return {
-      scope: "customer_order" as const,
+    out.push({
+      scope: "customer_order",
       id: r.id,
+      dispatchOrderId: r.id,
       reference: r.reference,
       recipientPhone: r.recipient_phone,
       network: b?.network ?? "—",
@@ -202,8 +234,27 @@ export async function fetchAwaitingManualOrders(): Promise<ManualOrderRow[]> {
       bundleName: b?.name ?? "—",
       supplierId: r.supplier,
       createdAt: r.created_at,
-    };
-  });
+    });
+  }
+
+  for (const r of (whs.data ?? []) as WhsRow[]) {
+    const order = Array.isArray(r.wholesale_orders) ? r.wholesale_orders[0] : r.wholesale_orders;
+    const b = Array.isArray(r.wholesale_bundles) ? r.wholesale_bundles[0] : r.wholesale_bundles;
+    out.push({
+      scope: "wholesale_order",
+      id: r.id,
+      dispatchOrderId: r.wholesale_order_id,
+      reference: order?.reference ?? r.id,
+      recipientPhone: r.recipient_phone,
+      network: b?.network ?? "—",
+      dataMb: b?.data_mb ?? 0,
+      bundleName: b?.name ?? "—",
+      supplierId: order?.supplier ?? null,
+      createdAt: r.created_at,
+    });
+  }
+
+  return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export interface FailedOrderRow {

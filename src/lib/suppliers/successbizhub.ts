@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { gbFromDataMb } from "./volume";
 import type { SupplierNetworkSlug, SupplierOrderScope } from "./types";
 
 /**
@@ -88,12 +89,10 @@ export function getSuccessBizHubOfferSlug(network: SupplierNetworkSlug): string 
   return slug || null;
 }
 
-/** Success Biz Hub expects volume in GB (string), not MB. 1 GB = 1000 MB. */
+/** Success Biz Hub expects volume in GB (string), not MB. Handles binary SKUs. */
 export function volumeGbFromMb(dataMb: number): string {
-  const gb = dataMb / 1000;
-  if (gb <= 0.75) return "1";
-  const rounded = Math.round(gb * 2) / 2;
-  return rounded % 1 === 0 ? String(Math.round(rounded)) : rounded.toFixed(1);
+  const gb = gbFromDataMb(dataMb);
+  return String(gb > 0 ? gb : 1);
 }
 
 /** Normalize to 233XXXXXXXXX as shown in the Postman collection. */

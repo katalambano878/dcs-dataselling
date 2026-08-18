@@ -101,6 +101,21 @@ const CUSTOMER_ROW_ACTIONS = [
 
 const REFUNDABLE_WHOLESALE_STATUSES = new Set(["failed", "processing", "queued", "pending"]);
 
+function canForwardToApi(row: AdminOrderBoardRow): boolean {
+  const api = (row.apiStatus ?? "").toLowerCase();
+  const source = (row.apiSource ?? "").toLowerCase();
+  if (api === "awaiting_manual" || source === "manual") return true;
+  if (!row.apiReference && (api === "failed" || row.orderStatus === "failed" || row.orderStatus === "queued")) {
+    return true;
+  }
+  return false;
+}
+
+function forwardOrderId(row: AdminOrderBoardRow): string | null {
+  if (row.kind === "wholesale_item") return row.wholesaleOrderId ?? null;
+  return row.id;
+}
+
 const CUSTOMER_BULK_STATUS = [
   { value: "queued", label: "Set undelivered (manual)" },
   { value: "processing", label: "Set to processing" },
@@ -405,6 +420,42 @@ export function AdminOrdersBoard({
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Refund failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function forwardToApi(row: AdminOrderBoardRow) {
+    const orderId = forwardOrderId(row);
+    if (!orderId) {
+      toast.error("Missing order id for forward");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Forward ${row.orderReference} to the connected ${row.network.toUpperCase()} supplier API?`,
+      )
+    ) {
+      return;
+    }
+
+    setActionOpen(null);
+    setPending(true);
+    try {
+      const res = await fetch("/api/admin/supplier/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: row.kind === "wholesale_item" ? "wholesale_order" : "customer_order",
+          orderId,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Forward failed");
+      toast.success("Forwarded to supplier API");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Forward failed");
     } finally {
       setPending(false);
     }
@@ -770,7 +821,12 @@ export function AdminOrdersBoard({
                       </span>
                     ) : null}
                   </AdminTd>
-                  <AdminTd className="text-xs">{row.apiSource ?? "—"}</AdminTd>
+                  <AdminTd className="text-xs">
+                    {(row.apiStatus ?? "").toLowerCase() === "awaiting_manual" ||
+                    (row.apiSource ?? "").toLowerCase() === "manual"
+                      ? "Not forwarded"
+                      : (row.apiSource ?? "—")}
+                  </AdminTd>
                   <AdminTd className="max-w-[90px] truncate font-mono text-xs">
                     {row.apiReference ?? "—"}
                   </AdminTd>
@@ -806,6 +862,19 @@ export function AdminOrdersBoard({
                             {o.label}
                           </button>
                         ))}
+                        {canForwardToApi(row) ? (
+                          <>
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                              type="button"
+                              className="block w-full px-3 py-2 text-left text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+                              disabled={pending || !forwardOrderId(row)}
+                              onClick={() => void forwardToApi(row)}
+                            >
+                              Forward to API
+                            </button>
+                          </>
+                        ) : null}
                         {isWalletPaidWholesale(row) ? (
                           <>
                             <div className="my-1 border-t border-slate-100" />
