@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertAdminApi } from "@/lib/auth/admin-api";
 import { getSupplierById } from "@/lib/suppliers/registry";
+import { isAdaayaConfigured, pingSupplier as pingAdaaya } from "@/lib/suppliers/adaaya";
 import { isIshareConfigured, pingSupplier as pingIshare } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isSkanka5Configured, pingSupplier as pingSkanka5 } from "@/lib/suppliers/skanka5";
@@ -37,6 +38,28 @@ export async function POST(request: Request) {
       supplier: "railwayexternal",
       label: "Products catalogue",
       data: result.raw,
+    });
+  }
+
+  if (supplierId === "adaaya") {
+    if (!isAdaayaConfigured()) {
+      return NextResponse.json(
+        { error: "ADAAYA_API_KEY / ADAAYA_API_SECRET not set" },
+        { status: 503 },
+      );
+    }
+    const result = await pingAdaaya();
+    if (!result.ok || (result.data.status ?? "").toLowerCase() !== "available") {
+      const err = result.ok
+        ? `Balance status: ${result.data.status}`
+        : result.error;
+      return NextResponse.json({ ok: false, error: err }, { status: 502 });
+    }
+    return NextResponse.json({
+      ok: true,
+      supplier: "adaaya",
+      label: "Adaaya balance",
+      data: result.data,
     });
   }
 

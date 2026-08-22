@@ -21,6 +21,7 @@ import {
   AdminStatusBadge,
 } from "@/components/admin";
 import { requireRole } from "@/lib/auth/session";
+import { isAdaayaConfigured } from "@/lib/suppliers/adaaya";
 import { isIshareConfigured } from "@/lib/suppliers/ishare";
 import { isRailwayExternalConfigured } from "@/lib/suppliers/railway-external";
 import { isShopDcsConfigured } from "@/lib/suppliers/shopdcs";
@@ -36,6 +37,7 @@ import {
 } from "@/lib/data/supplier-logs";
 import { SupplierPollRailwayButton } from "./supplier-poll-railway-button";
 import { SupplierPollShopDcsButton } from "./supplier-poll-shopdcs-button";
+import { SupplierPollAdaayaButton } from "./supplier-poll-adaaya-button";
 import { SupplierPingButton } from "./supplier-ping-button";
 import { SupplierLogTable } from "./supplier-log-table";
 import { FailedOrderList } from "./failed-order-list";
@@ -60,6 +62,7 @@ export default async function SupplierConsolePage() {
   const configured = isSkanka5Configured();
   const sbhConfigured = isSuccessBizHubConfigured();
   const ishareConfigured = isIshareConfigured();
+  const adaayaConfigured = isAdaayaConfigured();
   const railwayConfigured = isRailwayExternalConfigured();
   const shopDcsConfigured = isShopDcsConfigured();
   const webhookConfigured = Boolean(process.env.SKANKA5_WEBHOOK_SECRET);
@@ -79,6 +82,7 @@ export default async function SupplierConsolePage() {
     successbizhub: "DataCoreGH",
     railwayexternal: "Railway API",
     ishare: "iShare",
+    adaaya: "Adaaya",
     shopdcs: "Shop DCS",
     manual: "Manual",
   };
@@ -101,6 +105,16 @@ export default async function SupplierConsolePage() {
     { name: "ISHARE_API_KEY", present: ishareConfigured, required: true },
     { name: "ISHARE_MERCHANT_SLUG", present: Boolean(process.env.ISHARE_MERCHANT_SLUG), required: false },
     { name: "ISHARE_BASE_URL", present: Boolean(process.env.ISHARE_BASE_URL), required: false },
+  ];
+
+  const adaayaEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
+    { name: "ADAAYA_API_KEY", present: Boolean(process.env.ADAAYA_API_KEY?.trim()), required: true },
+    { name: "ADAAYA_API_SECRET", present: Boolean(process.env.ADAAYA_API_SECRET?.trim()), required: true },
+    {
+      name: "ADAAYA_BASE_URL",
+      present: Boolean(process.env.ADAAYA_BASE_URL?.trim()),
+      required: false,
+    },
   ];
 
   const railwayEnvChecks: Array<{ name: string; present: boolean; required: boolean }> = [
@@ -196,6 +210,7 @@ export default async function SupplierConsolePage() {
           skanka5Configured={configured}
           sbhConfigured={sbhConfigured}
           ishareConfigured={ishareConfigured}
+          adaayaConfigured={adaayaConfigured}
           railwayConfigured={railwayConfigured}
           shopDcsConfigured={shopDcsConfigured}
         />
@@ -307,8 +322,35 @@ export default async function SupplierConsolePage() {
       </AdminSection>
 
       <AdminSection
-        title="iShare (MultiData Ghana)"
-        description="AT data console fulfilment — route AirtelTigo via Admin routing or SUPPLIER_FOR_AT=ishare."
+        title="Adaaya (DCS External — AT)"
+        description="Replacement AT fulfilment via api.adaayalagroup.com — route with Admin routing or SUPPLIER_FOR_AT=adaaya. Status via /api/cron/poll-adaaya."
+        icon={Cable}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          <AdminStatusBadge ok={adaayaConfigured} label="API key + secret" />
+        </div>
+        <AdminAlert
+          tone={adaayaConfigured ? "success" : "warning"}
+          title={
+            adaayaConfigured
+              ? "Adaaya credentials detected"
+              : "ADAAYA_API_KEY / ADAAYA_API_SECRET not set"
+          }
+        >
+          <AdminEnvCheckList items={adaayaEnvChecks} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Base: <code>https://api.adaayalagroup.com/api/v1</code>. Network slug{" "}
+            <code>airteltigo</code>. Purchases require HMAC signing +{" "}
+            <code>Idempotency-Key</code>; poll transaction status until{" "}
+            <code>success</code> / <code>failed</code>. Your server outbound IP must be
+            allowlisted with Adaaya.
+          </p>
+        </AdminAlert>
+      </AdminSection>
+
+      <AdminSection
+        title="iShare (MultiData Ghana — legacy)"
+        description="Previous AT console API — keep available if still needed; prefer Adaaya for new AT routing."
         icon={Cable}
       >
         <div className="flex flex-wrap gap-1.5">
@@ -418,7 +460,14 @@ export default async function SupplierConsolePage() {
             <SupplierPingButton disabled={!sbhConfigured} supplier="successbizhub" />
           </div>
           <div className="mt-3 border-t border-slate-100 pt-3">
-            <p className="mb-2 text-xs font-semibold text-muted-foreground">iShare</p>
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">Adaaya</p>
+            <SupplierPingButton disabled={!adaayaConfigured} supplier="adaaya" label="Ping balance" />
+            <div className="mt-2">
+              <SupplierPollAdaayaButton disabled={!adaayaConfigured} />
+            </div>
+          </div>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">iShare (legacy)</p>
             <SupplierPingButton disabled={!ishareConfigured} supplier="ishare" label="Ping balance" />
           </div>
           <div className="mt-3 border-t border-slate-100 pt-3">

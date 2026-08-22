@@ -14,7 +14,8 @@ const NETWORK_SUPPLIER_OPTIONS: Array<{ id: NetworkSupplierId; label: string }> 
   { id: "skanka5", label: "Skanka5" },
   { id: "successbizhub", label: "DataCoreGH" },
   { id: "railwayexternal", label: "Railway API" },
-  { id: "ishare", label: "iShare" },
+  { id: "ishare", label: "iShare (legacy)" },
+  { id: "adaaya", label: "Adaaya" },
   { id: "shopdcs", label: "Shop DCS" },
 ];
 
@@ -31,6 +32,7 @@ interface Props {
   skanka5Configured: boolean;
   sbhConfigured: boolean;
   ishareConfigured: boolean;
+  adaayaConfigured?: boolean;
   railwayConfigured?: boolean;
   shopDcsConfigured?: boolean;
 }
@@ -42,6 +44,7 @@ export function SupplierRoutingControls({
   skanka5Configured,
   sbhConfigured,
   ishareConfigured,
+  adaayaConfigured = false,
   railwayConfigured = false,
   shopDcsConfigured = false,
 }: Props) {
@@ -62,6 +65,10 @@ export function SupplierRoutingControls({
     }
     if (supplier === "ishare" && !ishareConfigured) {
       toast.error("Set ISHARE_API_KEY first");
+      return;
+    }
+    if (supplier === "adaaya" && !adaayaConfigured) {
+      toast.error("Set ADAAYA_API_KEY and ADAAYA_API_SECRET first");
       return;
     }
     if (supplier === "railwayexternal" && !railwayConfigured) {
@@ -100,8 +107,9 @@ export function SupplierRoutingControls({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Every network has the same supplier choices: <strong>Manual</strong>, <strong>Skanka5</strong>,{" "}
-          <strong>DataCoreGH</strong>, <strong>Railway API</strong>, or <strong>iShare</strong>. No redeploy
-          needed. If you have not picked one here, the <code>SUPPLIER_FOR_*</code> env default applies.
+          <strong>DataCoreGH</strong>, <strong>Railway API</strong>, <strong>Adaaya</strong>,{" "}
+          <strong>iShare (legacy)</strong>, or <strong>Shop DCS</strong>. No redeploy needed. If you have
+          not picked one here, the <code>SUPPLIER_FOR_*</code> env default applies.
         </p>
       </div>
 

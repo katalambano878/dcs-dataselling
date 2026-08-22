@@ -28,13 +28,37 @@ const schema = z.object({
   supplierRouting: z
     .object({
       mtn: z
-        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .enum([
+          "manual",
+          "skanka5",
+          "successbizhub",
+          "railwayexternal",
+          "ishare",
+          "adaaya",
+          "shopdcs",
+        ])
         .optional(),
       telecel: z
-        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .enum([
+          "manual",
+          "skanka5",
+          "successbizhub",
+          "railwayexternal",
+          "ishare",
+          "adaaya",
+          "shopdcs",
+        ])
         .optional(),
       at: z
-        .enum(["manual", "skanka5", "successbizhub", "railwayexternal", "ishare", "shopdcs"])
+        .enum([
+          "manual",
+          "skanka5",
+          "successbizhub",
+          "railwayexternal",
+          "ishare",
+          "adaaya",
+          "shopdcs",
+        ])
         .optional(),
     })
     .optional(),

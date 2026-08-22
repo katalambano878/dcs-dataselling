@@ -25,6 +25,7 @@ export type NetworkSupplierId =
   | "successbizhub"
   | "railwayexternal"
   | "ishare"
+  | "adaaya"
   | "shopdcs";
 
 export interface SupplierRoutingConfig {
@@ -171,6 +172,7 @@ const VALID_SUPPLIER_IDS = new Set<NetworkSupplierId>([
   "successbizhub",
   "railwayexternal",
   "ishare",
+  "adaaya",
   "shopdcs",
 ]);
 

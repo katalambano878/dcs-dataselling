@@ -161,6 +161,37 @@ export async function sendConsoleBundle(params: {
     return { ok: false, error: result.error ?? "Supplier rejected order", code: "supplier_failed" };
   }
 
+  const supplierStatus = (result.status ?? "accepted").toLowerCase();
+  const inFlight = ["pending", "processing", "ambiguous", "accepted", "queued"].includes(
+    supplierStatus,
+  );
+
+  if (inFlight) {
+    await service
+      .from("console_send_ledger")
+      .update({
+        status: "processing",
+        supplier: supplier.id,
+        supplier_reference: result.reference ?? null,
+        supplier_status: result.status ?? "pending",
+        supplier_error: null,
+        completed_at: null,
+      })
+      .eq("id", sendId);
+
+    return {
+      ok: true,
+      send: mapSendRow(params.vendorId, {
+        ...(inserted as Record<string, unknown>),
+        status: "processing",
+        supplier: supplier.id,
+        supplier_reference: result.reference ?? null,
+        supplier_status: result.status ?? "pending",
+        completed_at: null,
+      }),
+    };
+  }
+
   await service
     .from("console_send_ledger")
     .update({

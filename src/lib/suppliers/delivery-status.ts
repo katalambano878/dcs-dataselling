@@ -15,6 +15,7 @@ const SUPPLIER_IN_FLIGHT = new Set([
   "pending",
   "queued",
   "processing",
+  "ambiguous",
 ]);
 
 const SUPPLIER_FAILED = new Set([

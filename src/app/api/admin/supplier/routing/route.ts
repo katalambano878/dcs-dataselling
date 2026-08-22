@@ -17,6 +17,7 @@ const supplierIdSchema = z.enum([
   "successbizhub",
   "railwayexternal",
   "ishare",
+  "adaaya",
   "shopdcs",
 ]);
 

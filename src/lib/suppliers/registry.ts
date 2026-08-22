@@ -1,5 +1,6 @@
 import "server-only";
 
+import { adaayaClient } from "./adaaya-client";
 import { ishareClient } from "./ishare-client";
 import { manualClient } from "./manual";
 import { railwayExternalClient } from "./railway-external-client";
@@ -21,6 +22,7 @@ const SUPPLIERS: Record<string, SupplierClient> = {
   successbizhub: successBizHubClient,
   railwayexternal: railwayExternalClient,
   ishare: ishareClient,
+  adaaya: adaayaClient,
   shopdcs: shopDcsClient,
   manual: manualClient,
 };
