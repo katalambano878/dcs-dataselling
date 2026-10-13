@@ -7,11 +7,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Vercel Cron target — keeps Railway supplier order statuses in sync.
+ * Keeps NovaMax / Railway order statuses in sync.
  *
- * Vercel sends a GET request with `Authorization: Bearer <CRON_SECRET>`.
- * We accept that, or an explicit `?secret=` match, so the endpoint can also
- * be triggered manually for diagnostics.
+ * The wholesaler updates each line (Completed / Cancelled) while the parent
+ * order stays Pending, so this must run every few minutes. Auth is
+ * `Authorization: Bearer <CRON_SECRET>` or `?secret=`.
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;

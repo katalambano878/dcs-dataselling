@@ -1,6 +1,7 @@
 import "server-only";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { reconcileAutoFulfilledOrders } from "@/lib/admin/order-fulfilment";
+import { syncPendingRailwayOrders } from "@/lib/suppliers/railway-poll";
 import {
   isApiProcessing,
   isAwaitingManualDelivery,
@@ -164,6 +165,11 @@ export async function fetchAdminOrderBoardRows(
   if (!hasSupabaseConfig()) return [];
 
   const service = createServiceClient();
+  try {
+    await syncPendingRailwayOrders(50);
+  } catch (err) {
+    console.error("[railway poll]", err);
+  }
   await reconcileAutoFulfilledOrders(service);
 
   const status = filters.status ?? "all";

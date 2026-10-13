@@ -534,8 +534,19 @@ export async function pollOrderStatus(
 export async function pollOrdersStatusBulk(
   orderIds: string[],
 ): Promise<RailwayResult<Array<{ orderId: string; status: string; items: RailwayOrderItem[] }>>> {
+  const numericIds = [
+    ...new Set(
+      orderIds
+        .map((id) => railwayOrderIdNumber(id))
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  if (numericIds.length === 0) {
+    return { ok: false, status: 0, error: "No numeric NovaMax order ids to poll" };
+  }
+
   const result = await call<{ success?: boolean; data?: RailwayOrderData[] }>("POST", "/orders/status", {
-    body: { orderIds },
+    body: { orderIds: numericIds },
   });
 
   await logSupplierEvent({
@@ -582,6 +593,45 @@ export function mapRailwayStatus(status: string): "fulfilled" | "failed" | "proc
   if (["completed", "complete", "success", "fulfilled", "delivered"].includes(s)) return "fulfilled";
   if (["cancelled", "canceled", "failed"].includes(s)) return "failed";
   return "processing";
+}
+
+/** NovaMax order ids are integers. Internal refs look like `mtn:23183`. */
+export function railwayOrderIdNumber(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const prefixed = trimmed.match(/^[a-z]+:(\d+)$/i);
+  const digits = prefixed?.[1] ?? trimmed;
+  if (!/^\d+$/.test(digits)) return null;
+  const n = Number(digits);
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
+  return n;
+}
+
+/**
+ * NovaMax leaves the parent order on Pending after it completes or cancels
+ * each line. The line `items[].status` is the status that actually changes.
+ */
+export function railwayStatusForLine(
+  orderStatus: string,
+  items: Array<{ status?: string; mobileNumber?: string }>,
+  phone: string,
+): string {
+  const wanted = phone.replace(/\D/g, "").slice(-9);
+  if (wanted.length >= 9) {
+    const match = items.find((item) => {
+      const got = (item.mobileNumber ?? "").replace(/\D/g, "").slice(-9);
+      return got.length >= 9 && got === wanted && item.status;
+    });
+    if (match?.status) return match.status;
+  }
+
+  const itemStatuses = items.map((item) => item.status).filter((s): s is string => Boolean(s));
+  if (itemStatuses.length === 0) return orderStatus;
+  const first = mapRailwayStatus(itemStatuses[0]!);
+  if (itemStatuses.every((s) => mapRailwayStatus(s) === first) && first !== "processing") {
+    return itemStatuses[0]!;
+  }
+  return orderStatus;
 }
 
 export function railwayOrderIdToCodes(orderId: string): string[] {
