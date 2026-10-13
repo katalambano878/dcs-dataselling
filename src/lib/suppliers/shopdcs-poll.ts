@@ -1,115 +1,174 @@
 import "server-only";
 
+import { after } from "next/server";
+import { syncWholesaleOrderFromItems } from "@/lib/admin/wholesale-order-sync";
+import { notifyVendorWholesaleFulfilled, notifyWholesaleItemDelivered } from "@/lib/notifications/wholesale-sms";
+import { refundWholesaleOrderToWallet } from "@/lib/payments/wallet";
+import { tryCreditReferralForWholesaleItem } from "@/lib/referrals/vendor-referral";
 import { createServiceClient, hasSupabaseConfig } from "@/lib/supabase/server";
-import { resolveSupplierDeliveryByReference } from "./dispatch";
 import {
-  extractShopDcsDeliveryStatus,
   fetchTransactionStatus,
   isShopDcsConfigured,
   mapShopDcsStatus,
+  shopDcsStatusForLine,
 } from "./shopdcs";
 
-function isShopDcsTxnCode(value: string): boolean {
-  const v = value.trim();
-  // Live Shop DCS codes look like txn_6a6cc5419d25d — skip our internal telecel:DCS-… refs.
-  return /^txn_/i.test(v) || /^\d+$/.test(v);
-}
+const OPEN_SUPPLIER_STATUSES = new Set(["accepted", "pending", "processing", "queued"]);
 
-/** Poll Shop DCS for in-flight Telecel orders and mark them fulfilled/failed. */
+type Line = {
+  id: string;
+  wholesale_order_id: string;
+  recipient_phone: string;
+  status: string;
+  supplier_status: string | null;
+  supplier_order_code: string | null;
+};
+
+/** Poll shopdcsgh.com and copy each Telecel line status onto this site. */
 export async function syncPendingShopDcsOrders(limit = 40): Promise<{
   polled: number;
   fulfilled: number;
   failed: number;
   stillProcessing: number;
+  updated: number;
 }> {
   if (!hasSupabaseConfig() || !isShopDcsConfigured()) {
-    return { polled: 0, fulfilled: 0, failed: 0, stillProcessing: 0 };
+    return { polled: 0, fulfilled: 0, failed: 0, stillProcessing: 0, updated: 0 };
   }
 
   const service = createServiceClient();
-  const ids = new Set<string>();
+  const lines = await loadOpenLines(service, limit);
+  const byTxn = new Map<string, Line[]>();
+  for (const line of lines) {
+    const code = line.supplier_order_code?.trim();
+    if (!code) continue;
+    const group = byTxn.get(code) ?? [];
+    group.push(line);
+    byTxn.set(code, group);
+  }
 
-  const { data: customerRows } = await service
-    .from("orders")
-    .select("supplier_order_code, supplier_reference")
-    .eq("supplier", "shopdcs")
-    .in("status", ["processing", "queued"])
-    .limit(limit);
+  let fulfilled = 0;
+  let failed = 0;
+  let stillProcessing = 0;
+  let updated = 0;
+  const parentsToSync = new Set<string>();
+  const parentStatus = new Map<string, string>();
 
-  for (const row of customerRows ?? []) {
-    const r = row as { supplier_order_code: string | null; supplier_reference: string | null };
-    if (r.supplier_order_code && isShopDcsTxnCode(r.supplier_order_code)) {
-      ids.add(r.supplier_order_code);
-    } else if (r.supplier_reference) {
-      for (const part of r.supplier_reference.split(",")) {
-        const t = part.trim();
-        if (t && isShopDcsTxnCode(t)) ids.add(t);
+  for (const [txnId, group] of byTxn) {
+    const result = await fetchTransactionStatus(txnId);
+    if (!result.ok) {
+      stillProcessing += group.length;
+      continue;
+    }
+
+    for (const line of group) {
+      const rawStatus = shopDcsStatusForLine(result.data, line.recipient_phone);
+      const mapped = mapShopDcsStatus(rawStatus);
+      if (!rawStatus || mapped === "processing") {
+        if (rawStatus && line.supplier_status !== rawStatus) {
+          await service
+            .from("wholesale_order_items")
+            .update({ supplier_status: rawStatus, supplier_response: result.data })
+            .eq("id", line.id);
+          updated += 1;
+        }
+        stillProcessing += 1;
+        continue;
+      }
+
+      const nextStatus = mapped;
+      if (line.supplier_status === rawStatus && line.status === nextStatus) continue;
+
+      const becameFulfilled = nextStatus === "fulfilled" && line.status !== "fulfilled";
+      const becameFailed = nextStatus === "failed" && line.status !== "failed";
+      const patch: Record<string, unknown> = {
+        supplier_status: rawStatus,
+        supplier_response: result.data,
+      };
+      // Only move lines that are still open. Already-delivered lines keep their
+      // status; we still record DELIVERED / CANCELLED from the old shop.
+      if (line.status === "queued" || line.status === "processing" || line.status === "pending") {
+        patch.status = nextStatus;
+        if (becameFulfilled) patch.supplier_fulfilled_at = new Date().toISOString();
+      }
+
+      const { error } = await service.from("wholesale_order_items").update(patch).eq("id", line.id);
+      if (error) continue;
+
+      updated += 1;
+      if (becameFulfilled && patch.status === "fulfilled") {
+        fulfilled += 1;
+        parentsToSync.add(line.wholesale_order_id);
+        after(() => tryCreditReferralForWholesaleItem(line.id));
+        after(() => notifyWholesaleItemDelivered(line.id));
+      } else if (becameFailed && patch.status === "failed") {
+        failed += 1;
+        parentsToSync.add(line.wholesale_order_id);
       }
     }
   }
 
-  // Wholesale parents tagged shopdcs — include recent failed rows that may still
-  // need a status refresh (e.g. marked failed before order_items status was parsed).
-  const { data: wholesaleRows } = await service
+  if (parentsToSync.size > 0) {
+    const { data } = await service
+      .from("wholesale_orders")
+      .select("id, status")
+      .in("id", [...parentsToSync]);
+    for (const raw of data ?? []) {
+      const row = raw as { id: string; status: string };
+      parentStatus.set(row.id, row.status);
+    }
+  }
+
+  for (const parentId of parentsToSync) {
+    const previous = parentStatus.get(parentId) ?? "processing";
+    await syncWholesaleOrderFromItems(service, parentId);
+    const { data } = await service
+      .from("wholesale_orders")
+      .select("status")
+      .eq("id", parentId)
+      .maybeSingle();
+    const next = (data as { status?: string } | null)?.status;
+    if (next === "failed" && (previous === "processing" || previous === "queued")) {
+      await refundWholesaleOrderToWallet(parentId);
+    }
+    if (next === "fulfilled" && previous !== "fulfilled") {
+      await service.from("wholesale_orders").update({ supplier_status: "DELIVERED" }).eq("id", parentId);
+      after(() => notifyVendorWholesaleFulfilled(parentId));
+    }
+  }
+
+  return { polled: byTxn.size, fulfilled, failed, stillProcessing, updated };
+}
+
+async function loadOpenLines(
+  service: ReturnType<typeof createServiceClient>,
+  limit: number,
+): Promise<Line[]> {
+  const { data: parents } = await service
     .from("wholesale_orders")
-    .select("id, supplier_reference")
+    .select("id")
     .eq("supplier", "shopdcs")
-    .in("status", ["processing", "queued", "failed"])
-    .limit(limit);
+    .order("created_at", { ascending: false })
+    .limit(250);
+  const parentIds = ((parents ?? []) as { id: string }[]).map((row) => row.id);
+  if (parentIds.length === 0) return [];
 
-  // Line-level txn codes for those parents (authoritative for Shop DCS poll)
-  const parentIds = ((wholesaleRows as { id: string }[] | null) ?? []).map((r) => r.id);
-  if (parentIds.length > 0) {
-    const { data: itemRows } = await service
-      .from("wholesale_order_items")
-      .select("supplier_order_code")
-      .in("wholesale_order_id", parentIds)
-      .not("supplier_order_code", "is", null)
-      .limit(limit);
-    for (const row of itemRows ?? []) {
-      const code = (row as { supplier_order_code: string | null }).supplier_order_code;
-      if (code && isShopDcsTxnCode(code)) ids.add(code);
-    }
+  const { data } = await service
+    .from("wholesale_order_items")
+    .select("id, wholesale_order_id, recipient_phone, status, supplier_status, supplier_order_code, created_at")
+    .in("wholesale_order_id", parentIds)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const open: Line[] = [];
+  for (const raw of data ?? []) {
+    const line = raw as Line;
+    const code = line.supplier_order_code?.trim() ?? "";
+    if (!/^txn_/i.test(code)) continue;
+    const state = (line.supplier_status ?? "").toLowerCase();
+    if (state && !OPEN_SUPPLIER_STATUSES.has(state)) continue;
+    open.push(line);
+    if (open.length >= limit) break;
   }
-
-  const transactionIds = [...ids].slice(0, limit);
-  let fulfilled = 0;
-  let failed = 0;
-  let stillProcessing = 0;
-
-  for (const txnId of transactionIds) {
-    const result = await fetchTransactionStatus(txnId);
-    if (!result.ok) {
-      stillProcessing += 1;
-      continue;
-    }
-    const deliveryStatus = extractShopDcsDeliveryStatus(result.data);
-    const mapped = mapShopDcsStatus(deliveryStatus);
-    if (mapped === "processing") {
-      stillProcessing += 1;
-      continue;
-    }
-
-    const resolution = await resolveSupplierDeliveryByReference({
-      supplierReference: txnId,
-      supplierOrderId: result.data.transaction_code
-        ? String(result.data.transaction_code)
-        : txnId,
-      outcome: mapped,
-      supplierStatus: deliveryStatus ?? mapped,
-      rawPayload: result.data,
-    });
-    if (mapped === "fulfilled") {
-      fulfilled += resolution.customerOrdersFulfilled + resolution.wholesaleItemsFulfilled;
-    } else {
-      failed += 1;
-    }
-  }
-
-  return {
-    polled: transactionIds.length,
-    fulfilled,
-    failed,
-    stillProcessing,
-  };
+  return open;
 }

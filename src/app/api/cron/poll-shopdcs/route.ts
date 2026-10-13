@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Cron / manual trigger — sync Shop DCS Telecel order statuses.
+ * Copy Telecel line status from shopdcsgh.com (DELIVERED / CANCELLED).
+ * The old shop does not push status here, so this must run every few minutes.
  * Auth: Authorization: Bearer <CRON_SECRET> or ?secret=
  */
 export async function GET(req: Request) {

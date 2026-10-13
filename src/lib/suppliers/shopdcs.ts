@@ -88,6 +88,24 @@ export function extractShopDcsDeliveryStatus(
   return top || null;
 }
 
+/** Shop DCS changes status on the order line (DELIVERED / CANCELLED), not only the parent. */
+export function shopDcsStatusForLine(
+  txn: ShopDcsTransaction | null | undefined,
+  phone: string,
+): string | null {
+  if (!txn) return null;
+  const wanted = phone.replace(/\D/g, "").slice(-9);
+  const items = Array.isArray(txn.order_items) ? txn.order_items : [];
+  if (wanted.length >= 9) {
+    const match = items.find((item) => {
+      const got = (item.beneficiary_number ?? "").replace(/\D/g, "").slice(-9);
+      return got.length >= 9 && got === wanted && (item.status ?? "").trim();
+    });
+    if (match?.status?.trim()) return match.status.trim();
+  }
+  return extractShopDcsDeliveryStatus(txn);
+}
+
 export function getShopDcsBaseUrl(): string {
   return (process.env.SHOP_DCS_BASE_URL ?? DEFAULT_BASE).trim().replace(/\/$/, "");
 }
