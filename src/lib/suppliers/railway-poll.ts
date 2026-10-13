@@ -15,15 +15,12 @@ import {
   type RailwayOrderItem,
 } from "./railway-external";
 
-const OPEN_SUPPLIER_STATUSES = [
-  "Pending",
+const OPEN_SUPPLIER_STATUSES = new Set([
   "pending",
   "accepted",
-  "Processing",
   "processing",
-  "Queued",
   "queued",
-];
+]);
 
 type WholesaleLine = {
   id: string;
@@ -119,9 +116,6 @@ async function collectRailwayOrderIds(
     .limit(400);
 
   const parentRows = (parents ?? []) as { id: string; status: string }[];
-  const openParentIds = new Set(
-    parentRows.filter((row) => row.status === "processing" || row.status === "queued").map((row) => row.id),
-  );
 
   if (parentRows.length > 0) {
     const { data: items } = await service
@@ -140,10 +134,8 @@ async function collectRailwayOrderIds(
         supplier_order_code: string | null;
         supplier_status: string | null;
       };
-      const open =
-        openParentIds.has(item.wholesale_order_id) ||
-        OPEN_SUPPLIER_STATUSES.includes(item.supplier_status ?? "");
-      if (!open) continue;
+      const supplierState = (item.supplier_status ?? "").toLowerCase();
+      if (supplierState && !OPEN_SUPPLIER_STATUSES.has(supplierState)) continue;
       const id = railwayOrderIdNumber(item.supplier_order_code);
       if (id) ids.add(id);
       if (ids.size >= limit) return [...ids];
@@ -164,11 +156,8 @@ async function collectRailwayOrderIds(
       supplier_order_code: string | null;
       supplier_reference: string | null;
     };
-    const open =
-      row.status === "processing" ||
-      row.status === "queued" ||
-      OPEN_SUPPLIER_STATUSES.includes(row.supplier_status ?? "");
-    if (!open) continue;
+    const supplierState = (row.supplier_status ?? "").toLowerCase();
+    if (supplierState && !OPEN_SUPPLIER_STATUSES.has(supplierState)) continue;
     const id =
       railwayOrderIdNumber(row.supplier_order_code) ??
       railwayOrderIdNumber(row.supplier_reference);
@@ -235,9 +224,9 @@ async function applyNovaOrder(
   for (const line of wholesaleLines.filter((item) => item.supplier_order_code === code)) {
     const rawStatus = railwayStatusForLine(row.status, row.items, line.recipient_phone);
     const mapped = mapRailwayStatus(rawStatus);
-    if (mapped === "processing" && line.supplier_status === rawStatus) continue;
-
     const nextStatus = mapped === "processing" ? line.status : mapped;
+    if (line.supplier_status === rawStatus && line.status === nextStatus) continue;
+
     const becameFulfilled = nextStatus === "fulfilled" && line.status !== "fulfilled";
     const becameFailed = nextStatus === "failed" && line.status !== "failed";
     const patch: Record<string, unknown> = {
@@ -262,9 +251,9 @@ async function applyNovaOrder(
   for (const line of customerLines.filter((item) => item.supplier_order_code === code)) {
     const rawStatus = railwayStatusForLine(row.status, row.items, line.recipient_phone);
     const mapped = mapRailwayStatus(rawStatus);
-    if (mapped === "processing" && line.supplier_status === rawStatus) continue;
-
     const nextStatus = mapped === "processing" ? line.status : mapped;
+    if (line.supplier_status === rawStatus && line.status === nextStatus) continue;
+
     const becameFulfilled = nextStatus === "fulfilled" && line.status !== "fulfilled";
     const becameFailed = nextStatus === "failed" && line.status !== "failed";
     const patch: Record<string, unknown> = {
