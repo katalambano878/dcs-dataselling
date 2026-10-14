@@ -16,11 +16,12 @@ const SUPPLIER_IN_FLIGHT = new Set([
   "queued",
   "processing",
   "ambiguous",
+  // Shop DCS: not delivered yet. A later poll usually turns this into DELIVERED.
+  "undelivered",
 ]);
 
 const SUPPLIER_FAILED = new Set([
   "failed",
-  "undelivered",
   "cancelled",
   "canceled",
   "rejected",

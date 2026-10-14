@@ -13,7 +13,14 @@ import {
   shopDcsStatusForLine,
 } from "./shopdcs";
 
-const OPEN_SUPPLIER_STATUSES = new Set(["accepted", "pending", "processing", "queued"]);
+const OPEN_SUPPLIER_STATUSES = new Set([
+  "accepted",
+  "pending",
+  "processing",
+  "queued",
+  // Shop DCS returns this at purchase time, then later flips the same line to DELIVERED.
+  "undelivered",
+]);
 
 type Line = {
   id: string;
@@ -85,11 +92,15 @@ export async function syncPendingShopDcsOrders(limit = 40): Promise<{
         supplier_status: rawStatus,
         supplier_response: result.data,
       };
-      // Only move lines that are still open. Already-delivered lines keep their
-      // status; we still record DELIVERED / CANCELLED from the old shop.
-      if (line.status === "queued" || line.status === "processing" || line.status === "pending") {
+      const stillOpen = line.status === "queued" || line.status === "processing" || line.status === "pending";
+      // UNDELIVERED is not final. If the shop later says DELIVERED, correct a
+      // line that was left failed or still open.
+      const correctUndelivered = nextStatus === "fulfilled" && line.status === "failed";
+      if (stillOpen || correctUndelivered) {
         patch.status = nextStatus;
-        if (becameFulfilled) patch.supplier_fulfilled_at = new Date().toISOString();
+        if (becameFulfilled || correctUndelivered) {
+          patch.supplier_fulfilled_at = new Date().toISOString();
+        }
       }
 
       const { error } = await service.from("wholesale_order_items").update(patch).eq("id", line.id);
