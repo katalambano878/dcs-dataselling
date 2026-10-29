@@ -7,6 +7,7 @@ import { hasSupabaseConfig } from "@/lib/supabase/server";
 
 const momoDirectSchema = z.object({
   enabled: z.boolean(),
+  storefrontEnabled: z.boolean().optional(),
   merchantNumbers: z.object({
     mtn: z.string().max(20),
     telecel: z.string().max(20),

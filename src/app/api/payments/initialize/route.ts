@@ -63,6 +63,17 @@ export async function POST(request: Request) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
+    let momoConfig: Awaited<ReturnType<typeof getMomoDirectConfig>> | null = null;
+    if (body.provider === "momo_direct") {
+      momoConfig = await getMomoDirectConfig();
+      if (!momoConfig.enabled || !momoConfig.storefrontEnabled) {
+        return NextResponse.json(
+          { error: "MoMo direct is not available on checkout. Pay with Paystack." },
+          { status: 503 },
+        );
+      }
+    }
+
     // MoMo-direct gets a short, easy-to-type reference. Paystack keeps the
     // existing dated format that Paystack expects.
     const reference =
@@ -99,21 +110,14 @@ export async function POST(request: Request) {
 
     // MoMo-direct: no Paystack call, return merchant numbers + reference so the
     // checkout page can show the "Send GHS X to 02XXXXXXXX" instructions.
-    if (body.provider === "momo_direct") {
-      const momo = await getMomoDirectConfig();
-      if (!momo.enabled) {
-        return NextResponse.json(
-          { error: "MoMo direct is currently disabled by the admin." },
-          { status: 503 },
-        );
-      }
+    if (body.provider === "momo_direct" && momoConfig) {
       return NextResponse.json({
         provider: "momo_direct",
         orderId: order.id,
         reference: order.reference,
         amount: Number(bundle.price),
-        merchantNumbers: momo.merchantNumbers,
-        merchantName: momo.merchantName,
+        merchantNumbers: momoConfig.merchantNumbers,
+        merchantName: momoConfig.merchantName,
       });
     }
 

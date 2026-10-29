@@ -5,8 +5,16 @@ import type { NetworkId } from "@/lib/constants";
 export const PLATFORM_CONFIG_KEY = "platform_config";
 
 export interface MomoDirectConfig {
-  /** Master switch — when false the checkout shows Paystack only. */
+  /**
+   * Master switch for MoMo direct (SMS matching and agent wallet ClaimIt).
+   * When false, MoMo direct is off everywhere, including customer checkout.
+   */
   enabled: boolean;
+  /**
+   * Customer checkout and agent store links. When false, buyers only see Paystack.
+   * Agent wallet ClaimIt still follows `enabled`.
+   */
+  storefrontEnabled: boolean;
   /** Merchant MoMo numbers per network. Empty string = disabled for that network. */
   merchantNumbers: Record<NetworkId, string>;
   /** Display name shown on the payment instructions card. */
@@ -87,6 +95,7 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   maintenanceMessage: "",
   momoDirect: {
     enabled: false,
+    storefrontEnabled: false,
     merchantNumbers: { mtn: "", telecel: "", at: "" },
     merchantName: "",
     smsForwarderSecret: "",
@@ -212,6 +221,10 @@ function normalizeMomoDirect(
   const inputNumbers = (input.merchantNumbers ?? {}) as Partial<Record<NetworkId, string>>;
   return {
     enabled: typeof input.enabled === "boolean" ? input.enabled : fallback.enabled,
+    // Missing means off, so existing configs hide MoMo direct on customer checkout
+    // until an admin turns the storefront switch on.
+    storefrontEnabled:
+      typeof input.storefrontEnabled === "boolean" ? input.storefrontEnabled : false,
     merchantNumbers: {
       mtn: normalizeMomoNumber(inputNumbers.mtn, fallback.merchantNumbers.mtn),
       telecel: normalizeMomoNumber(inputNumbers.telecel, fallback.merchantNumbers.telecel),

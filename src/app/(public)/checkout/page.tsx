@@ -24,10 +24,11 @@ export default async function CheckoutPage({
     getMomoDirectConfig(),
   ]);
 
-  // Only offer MoMo direct in the UI if admin enabled it AND at least one
-  // merchant number is set for the current bundle's network.
+  // Storefront switch is separate from the master MoMo switch, so agent wallet
+  // ClaimIt can stay on while customer checkout shows Paystack only.
   const momoDirectEnabled =
     momo.enabled &&
+    momo.storefrontEnabled &&
     Boolean(
       bundle && momo.merchantNumbers[bundle.network as keyof typeof momo.merchantNumbers],
     );

@@ -245,8 +245,8 @@ export function PlatformConfigEditor({ initialConfig }: Props) {
               MoMo direct (SMS forwarder)
             </p>
             <p className="mt-0.5 text-xs text-white/55">
-              Accept Mobile Money payments by matching forwarded SMS to customer-typed transaction IDs.
-              Leave disabled to keep checkout on Paystack only.
+              Match forwarded SMS to transaction IDs. This switch powers agent wallet MoMo ClaimIt.
+              Customer checkout has its own switch below.
             </p>
           </div>
           <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-xs font-semibold text-white/70">
@@ -264,6 +264,30 @@ export function PlatformConfigEditor({ initialConfig }: Props) {
             {momo.enabled ? "Enabled" : "Disabled"}
           </label>
         </div>
+
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
+          <input
+            type="checkbox"
+            checked={momo.storefrontEnabled}
+            disabled={!momo.enabled}
+            onChange={(e) =>
+              setConfig((c) => ({
+                ...c,
+                momoDirect: { ...c.momoDirect, storefrontEnabled: e.target.checked },
+              }))
+            }
+            className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 accent-amber-500 disabled:opacity-40"
+          />
+          <span>
+            <span className="block text-xs font-semibold text-white">
+              Show MoMo direct on customer checkout
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-white/55">
+              Storefront and agent store links only. Leave this off to show Paystack alone.
+              Agent wallet top-up is not affected.
+            </span>
+          </span>
+        </label>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Field label="Merchant name (shown to customers)">
