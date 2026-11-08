@@ -118,6 +118,12 @@ export function SiteFooter() {
           <p className="text-[9px] text-slate-500 sm:text-[11px]">
             © {new Date().getFullYear()} {SITE.name}. All rights reserved.
           </p>
+          <p className="text-[9px] text-slate-500 sm:text-[11px]">
+            Powered by{" "}
+            <a href="https://doctorbarns.com" target="_blank" rel="noopener" className="text-slate-500 hover:underline">
+              Doctor Barns Tech
+            </a>
+          </p>
           <p className="flex items-center gap-1 text-[9px] text-slate-500 sm:text-[11px]">
             <span className="pulse-dot" />
             <span className="ml-1">Ghana 🇬🇭</span>
